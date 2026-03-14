@@ -1,101 +1,415 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { KPICard } from "@/components/dashboard/kpi-card";
+import { LiveFeed } from "@/components/dashboard/live-feed";
+import {
+  OcCard,
+  SectionHeader,
+  StatusDot,
+  OcBadge,
+  ProgressBar,
+} from "@/components/shared";
+
+// ── Mock Data ──
+const agents = [
+  { id: "ag-001", name: "Crawler Alpha", status: "active" as const, currentTask: "scrape:linkedin/jobs", tasksCompleted: 1247, cpu: 42 },
+  { id: "ag-002", name: "Parser Beta", status: "active" as const, currentTask: "parse:pdf-batch-09", tasksCompleted: 893, cpu: 67 },
+  { id: "ag-003", name: "Indexer Gamma", status: "idle" as const, currentTask: null, tasksCompleted: 2104, cpu: 8 },
+  { id: "ag-004", name: "Social Bot Delta", status: "active" as const, currentTask: "post:twitter/scheduled", tasksCompleted: 456, cpu: 34 },
+  { id: "ag-005", name: "Engage Epsilon", status: "active" as const, currentTask: "reply:ig/mentions", tasksCompleted: 312, cpu: 28 },
+  { id: "ag-006", name: "Router Zeta", status: "active" as const, currentTask: "route:queue-dispatch", tasksCompleted: 3891, cpu: 23 },
+];
+
+
+const platforms = [
+  { name: "Twitter/X", handle: "openclaw_ai", connected: true, followers: "2.4K", postsToday: 6, engagement: "4.2%" },
+  { name: "Instagram", handle: "openclaw.ai", connected: true, followers: "1.1K", postsToday: 3, engagement: "6.8%" },
+  { name: "LinkedIn", handle: "openclaw", connected: true, followers: "890", postsToday: 2, engagement: "3.1%" },
+  { name: "TikTok", handle: "openclaw_ai", connected: true, followers: "1.2K", postsToday: 4, engagement: "8.9%" },
+  { name: "YouTube", handle: "OpenClawAI", connected: true, followers: "340", postsToday: 1, engagement: "2.4%" },
+  { name: "Reddit", handle: "openclaw_bot", connected: true, followers: "580", postsToday: 5, engagement: "5.7%" },
+  { name: "Facebook", handle: "openclaw", connected: false, followers: "—", postsToday: 0, engagement: "—" },
+  { name: "Threads", handle: "openclaw", connected: false, followers: "—", postsToday: 0, engagement: "—" },
+];
+
+const postQueue = [
+  { platform: "Twitter/X", content: "AI agents are reshaping how we think about automation. Here's what we learned building OpenClaw...", time: "Scheduled: 3:00 PM", status: "scheduled" },
+  { platform: "Instagram", content: "Behind the scenes of our multi-agent architecture. Swipe to see the full pipeline →", time: "Scheduled: 4:30 PM", status: "scheduled" },
+  { platform: "LinkedIn", content: "We just shipped browser-native automation for our agent fleet.", time: "Scheduled: 5:00 PM", status: "scheduled" },
+  { platform: "TikTok", content: "Watch our AI agent post to 6 platforms simultaneously in under 30 seconds", time: "Posted: 1:45 PM", status: "posted" },
+  { platform: "Reddit", content: "r/artificial — We open-sourced our multi-model routing system.", time: "Posted: 12:30 PM", status: "posted" },
+  { platform: "Twitter/X", content: "Replying to @user: Great question! Our agent swarm handles that by...", time: "Pending review", status: "review" },
+];
+
+const modelRoutes = [
+  { task: "Content generation (posts, captions)", model: "Claude Sonnet", active: true, calls: "120" },
+  { task: "Reply drafting (DMs, comments)", model: "Claude Sonnet", active: true, calls: "340" },
+  { task: "Mention scanning & triage", model: "Claude Sonnet", active: true, calls: "890" },
+  { task: "Sentiment analysis", model: "Claude Sonnet", active: true, calls: "450" },
+  { task: "Content scheduling & routing", model: "Claude Sonnet", active: true, calls: "220" },
+  { task: "Image caption generation", model: "Claude Sonnet", active: true, calls: "85" },
+  { task: "Hashtag research & trending", model: "Claude Sonnet", active: false, calls: "0" },
+  { task: "Engagement analytics summary", model: "Claude Sonnet", active: true, calls: "60" },
+];
+
+const browserSessions = [
+  { site: "twitter.com", action: "Posting scheduled content — tab 1", status: "active" as const },
+  { site: "instagram.com", action: "Monitoring story mentions — tab 2", status: "active" as const },
+  { site: "linkedin.com", action: "CAPTCHA detected — awaiting manual input", status: "error" as const },
+  { site: "tiktok.com", action: "Uploading video clip — 78% complete", status: "active" as const },
+  { site: "reddit.com", action: "Replying to comments in r/artificial", status: "active" as const },
+];
+
+const hourlyUsage = [
+  { label: "6a", value: 120 }, { label: "7a", value: 340 }, { label: "8a", value: 580 },
+  { label: "9a", value: 890 }, { label: "10a", value: 1200 }, { label: "11a", value: 980 },
+  { label: "12p", value: 760 }, { label: "1p", value: 1100 }, { label: "2p", value: 1340 },
+  { label: "3p", value: 0 }, { label: "4p", value: 0 }, { label: "5p", value: 0 },
+];
+
+const users = [
+  { name: "Bobby Chen", email: "bobby@openclaw.io", role: "admin", lastActive: "2 min ago", apiCalls: "14,203" },
+  { name: "Sarah Kim", email: "sarah@openclaw.io", role: "operator", lastActive: "12 min ago", apiCalls: "8,421" },
+  { name: "Marcus Lee", email: "marcus@openclaw.io", role: "operator", lastActive: "1 hr ago", apiCalls: "3,109" },
+  { name: "Anika Patel", email: "anika@openclaw.io", role: "viewer", lastActive: "3 hr ago", apiCalls: "284" },
+];
+
+// ── Sub-components ──
+
+
+function BarChart({ data }: { data: { label: string; value: number; highlight?: boolean }[] }) {
+  const max = Math.max(...data.map(d => d.value)) || 1;
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="flex items-end gap-[5px] h-[90px]">
+      {data.map((d, i) => (
+        <div key={i} className="flex flex-col items-center flex-1 gap-[3px]">
+          <div
+            className="w-full max-w-[24px] rounded-[3px] transition-all duration-[400ms]"
+            style={{
+              height: `${Math.max((d.value / max) * 72, 2)}px`,
+              backgroundColor: d.highlight ? "#2563EB" : "#F0EDE6",
+            }}
+          />
+          <span className="text-[8px] text-oc-text-muted font-mono">{d.label}</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      ))}
     </div>
+  );
+}
+
+function DonutChart({ segments }: { segments: { label: string; value: number; color: string }[] }) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  let cum = 0;
+  const r = 36, circ = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-3.5">
+      <svg width={100} height={100} viewBox="0 0 100 100">
+        {segments.map((seg, i) => {
+          const pct = seg.value / total;
+          const dashArray = `${pct * circ} ${circ}`;
+          const rot = cum * 360 - 90;
+          cum += pct;
+          return (
+            <circle key={i} cx="50" cy="50" r={r} fill="none" stroke={seg.color}
+              strokeWidth="11" strokeDasharray={dashArray} transform={`rotate(${rot} 50 50)`} strokeLinecap="round" />
+          );
+        })}
+        <text x="50" y="48" textAnchor="middle" className="text-[15px] font-bold fill-oc-text font-sans">{total}</text>
+        <text x="50" y="59" textAnchor="middle" className="text-[7px] fill-oc-text-muted font-sans">total</text>
+      </svg>
+      <div className="flex flex-col gap-[5px]">
+        {segments.map((seg, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-[11px]">
+            <span className="w-[7px] h-[7px] rounded-[2px] shrink-0" style={{ backgroundColor: seg.color }} />
+            <span className="text-oc-text-secondary">{seg.label}</span>
+            <span className="font-semibold text-oc-text ml-auto font-mono">{seg.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ──
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [now, setNow] = useState(new Date());
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
+  }
+
+  return (
+    <>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 bg-oc-text text-white text-small font-semibold rounded-oc shadow-lg animate-[fadeIn_0.2s_ease]">
+          {toast}
+        </div>
+      )}
+
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-page-title text-oc-text m-0">Operator Dashboard</h1>
+          <p className="text-small text-oc-text-muted mt-[3px]">
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} ·{" "}
+            <span className="font-mono">{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => showToast("Report exported to ./reports/")}
+            className="text-[11px] font-semibold text-oc-text-secondary bg-oc-card border border-oc-border rounded-oc-sm px-3.5 py-[7px] cursor-pointer font-sans"
+          >
+            Export Report
+          </button>
+          <button
+            onClick={() => router.push("/agents")}
+            className="text-[11px] font-semibold text-white bg-oc-text border-none rounded-oc-sm px-4 py-[7px] cursor-pointer font-sans"
+          >
+            + New Agent
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-4 gap-3.5 mb-5">
+        <KPICard label="Active Agents" value="5 / 6" change="2 more" changeType="up" sparkData={[2, 3, 3, 4, 3, 4, 5, 5, 5]} icon="⬡" />
+        <KPICard label="Posts Today" value="21" change="38%" changeType="up" sparkData={[4, 6, 8, 10, 12, 15, 17, 19, 21]} icon="◈" />
+        <KPICard label="Tokens Used" value="1.82M" change="8.1%" changeType="up" sparkData={[800, 920, 1100, 1050, 1200, 1400, 1600, 1750, 1820]} icon="⟡" />
+        <KPICard label="Avg Engagement" value="5.2%" change="1.1%" changeType="up" sparkData={[3.1, 3.4, 3.8, 4.0, 4.2, 4.5, 4.8, 5.0, 5.2]} icon="♡" />
+      </div>
+
+      {/* Social Media Command Center */}
+      <OcCard className="mb-5">
+        <SectionHeader title="Social Media Command Center" subtitle="All platforms managed via Claude Code Chrome automation" action="+ Connect Platform" onAction={() => showToast("Platform connection flow coming soon")} />
+        <div className="grid grid-cols-4 gap-3">
+          {platforms.map((p) => (
+            <div key={p.name} className={`p-3.5 rounded-[10px] border flex flex-col gap-2.5 transition-all duration-200 ${
+              p.connected ? "border-oc-border bg-oc-card" : "border-oc-border-light bg-oc-bg opacity-55"
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-[30px] h-[30px] rounded-oc-sm bg-oc-bg flex items-center justify-center text-[14px] font-extrabold text-oc-text">
+                    {p.name === "Twitter/X" ? "𝕏" : p.name[0]}
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-semibold text-oc-text">{p.name}</div>
+                    <div className="text-tiny text-oc-text-muted font-mono">@{p.handle}</div>
+                  </div>
+                </div>
+                <StatusDot status={p.connected ? "connected" : "disconnected"} />
+              </div>
+              {p.connected && (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { val: p.followers, label: "Followers" },
+                    { val: String(p.postsToday), label: "Posted" },
+                    { val: p.engagement, label: "Engage%" },
+                  ].map((s) => (
+                    <div key={s.label} className="text-center py-1.5 bg-oc-bg rounded-[6px]">
+                      <div className={`text-[14px] font-bold ${s.label === "Engage%" ? "text-oc-green" : "text-oc-text"}`}>{s.val}</div>
+                      <div className="text-[9px] text-oc-text-muted uppercase tracking-[0.05em]">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!p.connected && (
+                <button
+                  onClick={() => showToast(`Connecting ${p.name}...`)}
+                  className="text-[11px] font-semibold text-oc-blue bg-oc-blue-light border-none rounded-[6px] py-[7px] w-full cursor-pointer font-sans"
+                >
+                  Connect Account
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </OcCard>
+
+      {/* Post Queue + Model Routing + Browser Sessions */}
+      <div className="grid grid-cols-[1fr_1fr_300px] gap-3.5 mb-5">
+        <OcCard>
+          <SectionHeader title="Content Queue" subtitle="Scheduled, posted & pending review" action="Schedule" onAction={() => router.push("/tasks")} />
+          <div className="max-h-[310px] overflow-y-auto">
+            {postQueue.map((post, i) => {
+              const platformColors: Record<string, string> = { "Twitter/X": "#000", "Instagram": "#E4405F", "LinkedIn": "#0A66C2", "TikTok": "#000", "Reddit": "#FF4500" };
+              const statusColors: Record<string, { color: string; bg: string }> = {
+                scheduled: { color: "#2563EB", bg: "#EFF4FF" },
+                posted: { color: "#059669", bg: "#ECFDF5" },
+                review: { color: "#D97706", bg: "#FFFBEB" },
+              };
+              const sc = statusColors[post.status] || statusColors.scheduled;
+              return (
+                <div key={i} className="flex gap-3 py-2.5 border-b border-oc-border-light items-start">
+                  <div className="w-1 h-9 rounded-[2px] mt-0.5 shrink-0" style={{ backgroundColor: platformColors[post.platform] || "#2563EB" }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-[3px]">
+                      <span className="text-[11px] font-semibold text-oc-text">{post.platform}</span>
+                      <OcBadge label={post.status} color={sc.color} bg={sc.bg} />
+                    </div>
+                    <div className="text-small text-oc-text-secondary leading-[1.4] overflow-hidden text-ellipsis whitespace-nowrap">{post.content}</div>
+                    <div className="text-tiny text-oc-text-muted font-mono mt-[3px]">{post.time}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </OcCard>
+
+        <OcCard>
+          <SectionHeader title="Model Routing" subtitle="Claude Sonnet — all language tasks" />
+          <div className="mb-3 flex gap-2">
+            <div className="flex-1 p-2.5 bg-oc-purple-light rounded-oc-sm text-center">
+              <div className="text-[16px] font-bold text-oc-purple">
+                {modelRoutes.reduce((s, r) => s + parseInt(r.calls), 0)}
+              </div>
+              <div className="text-tiny text-oc-purple font-medium">Claude calls/hr</div>
+            </div>
+          </div>
+          {modelRoutes.map((route, i) => (
+            <div key={i} className="flex items-center justify-between py-[9px] border-b border-oc-border-light">
+              <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${route.active ? "bg-oc-green" : "bg-oc-text-muted"}`} />
+                <span className="text-small font-medium text-oc-text">{route.task}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <OcBadge label={route.model} color="#7C3AED" bg="#F5F3FF" />
+                <span className="text-tiny text-oc-text-muted font-mono">{route.calls}/hr</span>
+              </div>
+            </div>
+          ))}
+        </OcCard>
+
+        <OcCard>
+          <SectionHeader title="Chrome Sessions" subtitle="Live browser automation" />
+          <div className="flex flex-col gap-2">
+            {browserSessions.map((s, i) => (
+              <div key={i} className="p-[10px_12px] rounded-oc-sm bg-oc-bg flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-[6px] bg-oc-card border border-oc-border flex items-center justify-center text-[14px]">🌐</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-small font-semibold text-oc-text">{s.site}</div>
+                  <div className="text-tiny text-oc-text-muted font-mono overflow-hidden text-ellipsis whitespace-nowrap">{s.action}</div>
+                </div>
+                <StatusDot status={s.status} />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3.5 p-[10px_12px] bg-oc-bg rounded-oc-sm text-[11px]">
+            <div className="flex justify-between mb-1"><span className="text-oc-text-muted">Connection</span><span className="font-semibold text-oc-green">Stable</span></div>
+            <div className="flex justify-between mb-1"><span className="text-oc-text-muted">Extension</span><span className="font-mono text-tiny text-oc-text">v1.0.36</span></div>
+            <div className="flex justify-between"><span className="text-oc-text-muted">Auth state</span><span className="font-semibold text-oc-green">Logged in (5)</span></div>
+          </div>
+        </OcCard>
+      </div>
+
+      {/* Agent Fleet + Token Usage + Task Distribution */}
+      <div className="grid grid-cols-[1fr_300px] gap-3.5 mb-5">
+        <OcCard>
+          <SectionHeader title="Agent Fleet" subtitle="Real-time agent status and workload" action="Manage" onAction={() => router.push("/agents")} />
+          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
+            <span>Agent</span><span>Status</span><span>Current Task</span><span>Done</span><span>Load</span><span></span>
+          </div>
+          {agents.map((a) => (
+            <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
+              <div className="flex items-center gap-2">
+                <StatusDot status={a.status} />
+                <span className="font-semibold text-oc-text">{a.name}</span>
+                <span className="text-tiny text-oc-text-muted font-mono bg-oc-bg px-1.5 py-[1px] rounded">{a.id}</span>
+              </div>
+              <div className="text-small text-oc-text-secondary">{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</div>
+              <div className="font-mono text-[11px] text-oc-text-secondary">{a.currentTask || "—"}</div>
+              <div className="font-mono text-small text-oc-text">{a.tasksCompleted}</div>
+              <div>
+                <ProgressBar value={a.cpu} color={a.cpu > 80 ? "#D97706" : "#2563EB"} />
+                <span className="text-[9px] text-oc-text-muted mt-0.5 block">{a.cpu}%</span>
+              </div>
+              <div className="text-right">
+                <button onClick={() => router.push("/agents")} className="text-[11px] font-semibold text-oc-blue bg-transparent border-none cursor-pointer font-sans">Details →</button>
+              </div>
+            </div>
+          ))}
+        </OcCard>
+
+        <div className="flex flex-col gap-3.5">
+          <OcCard>
+            <SectionHeader title="Token Usage" subtitle="Today" />
+            <BarChart data={hourlyUsage.map(h => ({ ...h, highlight: h.label === "2p" }))} />
+            <div className="mt-2.5 flex justify-between text-tiny">
+              <span className="text-oc-text-muted">Quota: <span className="font-semibold text-oc-text">1.82M / 2.4M</span></span>
+              <span className="text-oc-amber font-semibold">75.8%</span>
+            </div>
+            <div className="mt-1"><ProgressBar value={75.8} color="#D97706" /></div>
+          </OcCard>
+          <OcCard>
+            <SectionHeader title="Task Distribution" />
+            <DonutChart segments={[
+              { label: "Social Posts", value: 35, color: "#2563EB" },
+              { label: "Engagement", value: 28, color: "#059669" },
+              { label: "Monitoring", value: 22, color: "#0D9488" },
+              { label: "Content Gen", value: 15, color: "#7C3AED" },
+            ]} />
+          </OcCard>
+        </div>
+      </div>
+
+      {/* Activity + Users */}
+      <div className="grid grid-cols-2 gap-3.5 mb-8">
+        <OcCard>
+          <LiveFeed compact maxItems={30} />
+        </OcCard>
+
+        <OcCard>
+          <SectionHeader title="Team & Permissions" subtitle="User access management" action="Invite" onAction={() => showToast("Invite link copied to clipboard")} />
+          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
+            <span>User</span><span>Role</span><span>Last Active</span><span>API Calls</span>
+          </div>
+          {users.map((u) => {
+            const roleColors: Record<string, { bg: string; color: string }> = {
+              admin: { bg: "#EFF4FF", color: "#2563EB" },
+              operator: { bg: "#F5F3FF", color: "#7C3AED" },
+              viewer: { bg: "#F8F7F4", color: "#9C9590" },
+            };
+            const rc = roleColors[u.role] || roleColors.viewer;
+            return (
+              <div key={u.email} className="grid grid-cols-[2fr_1fr_1.2fr_1fr] items-center py-2.5 border-b border-oc-border-light text-[13px]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-oc-blue-light flex items-center justify-center text-[11px] font-bold text-oc-blue">
+                    {u.name.split(" ").map(n => n[0]).join("")}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-oc-text text-[13px]">{u.name}</div>
+                    <div className="text-tiny text-oc-text-muted">{u.email}</div>
+                  </div>
+                </div>
+                <div><OcBadge label={u.role} color={rc.color} bg={rc.bg} /></div>
+                <div className="font-mono text-[11px] text-oc-text-secondary">{u.lastActive}</div>
+                <div className="font-mono text-small text-oc-text">{u.apiCalls}</div>
+              </div>
+            );
+          })}
+          <div className="mt-3.5 p-[12px_14px] bg-oc-bg rounded-oc-sm flex justify-between items-center">
+            <div>
+              <div className="text-tiny text-oc-text-muted font-medium">Est. Monthly Cost</div>
+              <div className="text-[18px] font-bold tracking-[-0.02em] mt-0.5">$247.80</div>
+            </div>
+            <div className="text-right">
+              <div className="text-tiny text-oc-text-muted font-medium">Billing Period</div>
+              <div className="text-small font-semibold mt-0.5">Mar 1 – Mar 31</div>
+            </div>
+          </div>
+        </OcCard>
+      </div>
+    </>
   );
 }

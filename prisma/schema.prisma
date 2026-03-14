@@ -1,0 +1,488 @@
+// OpenClaw Platform — Database Schema (22 Tables)
+// PostgreSQL via Docker · Prisma ORM
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──
+
+enum AgentStatus {
+  active
+  idle
+  error
+  offline
+}
+
+enum ContentStatus {
+  idea
+  scripting
+  imaging
+  filming
+  voiceover
+  assembly
+  review
+  approved
+  published
+  failed
+}
+
+enum PipelineStage {
+  prompt
+  image
+  video
+  lip_sync
+  voiceover
+  assembly
+}
+
+enum PostStatus {
+  draft
+  scheduled
+  posting
+  posted
+  failed
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  failed
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum QualityTier {
+  manual
+  human_in_loop
+  ai_reviewer
+}
+
+enum ModelProvider {
+  claude
+  gemini_nano_banana
+  gemini_veo
+  kling
+  edge_tts
+  ffmpeg
+}
+
+// ── 1. Agents ──
+
+model Agent {
+  id          String      @id @default(cuid())
+  name        String
+  type        String      // ideator, writer, designer, filmmaker, editor, social, engage, scanner
+  status      AgentStatus @default(offline)
+  personality String?     @db.Text // soul/personality prompt
+  config      Json?       // agent-specific config
+  currentTask String?
+  lastHeartbeat DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  logs        AgentLog[]
+  tasks       Task[]
+
+  @@index([status])
+  @@map("agents")
+}
+
+// ── 2. Agent Logs ──
+
+model AgentLog {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@map("agent_logs")
+}
+
+// ── 3. Content Items ──
+
+model ContentItem {
+  id          String        @id @default(cuid())
+  title       String
+  description String?       @db.Text
+  niche       String?
+  tags        String[]
+  status      ContentStatus @default(idea)
+  qualityTier QualityTier   @default(human_in_loop)
+  targetPlatforms String[]
+  script      String?       @db.Text
+  finalOutput String?       // path to final assembled file
+  totalCost   Float         @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  assets      ContentAsset[]
+  pipelineRuns PipelineRun[]
+  socialPosts SocialPost[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("content_items")
+}
+
+// ── 4. Content Assets ──
+
+model ContentAsset {
+  id            String   @id @default(cuid())
+  contentItemId String
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  type          String   // image, video, audio, script, thumbnail
+  filePath      String
+  fileName      String
+  mimeType      String?
+  fileSize      Int?
+  metadata      Json?    // resolution, duration, model used, prompt, etc.
+  createdAt     DateTime @default(now())
+
+  @@index([contentItemId])
+  @@map("content_assets")
+}
+
+// ── 5. Pipeline Runs ──
+
+model PipelineRun {
+  id            String        @id @default(cuid())
+  contentItemId String
+  contentItem   ContentItem   @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  stage         PipelineStage
+  model         ModelProvider
+  status        TaskStatus    @default(pending)
+  inputPrompt   String?       @db.Text
+  outputPath    String?
+  outputPreview String?       @db.Text // text preview or thumbnail path
+  tokensIn      Int?
+  tokensOut     Int?
+  cost          Float?
+  duration      Int?          // milliseconds
+  error         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  completedAt   DateTime?
+
+  @@index([contentItemId, stage])
+  @@map("pipeline_runs")
+}
+
+// ── 6. Characters ──
+
+model Character {
+  id              String   @id @default(cuid())
+  name            String
+  description     String   @db.Text
+  stylePrompt     String   @db.Text
+  niche           String?
+  referenceImages String[] // file paths to reference images
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("characters")
+}
+
+// ── 7. Platforms ──
+
+model Platform {
+  id          String   @id @default(cuid())
+  name        String   // Twitter/X, Instagram, LinkedIn, TikTok, YouTube, Reddit
+  handle      String
+  connected   Boolean  @default(false)
+  credentials Json?    // encrypted connection info
+  followers   Int      @default(0)
+  config      Json?    // platform-specific settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts     SocialPost[]
+  mentions  Mention[]
+
+  @@unique([name, handle])
+  @@map("platforms")
+}
+
+// ── 8. Social Posts ──
+
+model SocialPost {
+  id            String     @id @default(cuid())
+  platformId    String
+  platform      Platform   @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  contentItemId String?
+  contentItem   ContentItem? @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+  content       String     @db.Text
+  mediaUrls     String[]
+  status        PostStatus @default(draft)
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  engagement    Json?      // likes, shares, comments, views
+  error         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([platformId, status])
+  @@index([scheduledAt])
+  @@map("social_posts")
+}
+
+// ── 9. Mentions ──
+
+model Mention {
+  id         String   @id @default(cuid())
+  platformId String
+  platform   Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  type       String   // mention, dm, comment, reply
+  author     String
+  content    String   @db.Text
+  sentiment  String?  // positive, negative, neutral
+  isRead     Boolean  @default(false)
+  isReplied  Boolean  @default(false)
+  replyText  String?  @db.Text
+  sourceUrl  String?
+  createdAt  DateTime @default(now())
+
+  @@index([platformId, isRead])
+  @@map("mentions")
+}
+
+// ── 10. Conversations ──
+
+model Conversation {
+  id        String   @id @default(cuid())
+  title     String?
+  model     String   // claude-sonnet-4.6
+  source    String   @default("dashboard") // dashboard, telegram
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+// ── 11. Messages ──
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user, assistant, system
+  content        String       @db.Text
+  tokensIn       Int?
+  tokensOut      Int?
+  cost           Float?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ── 12. Tasks ──
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?      @db.Text
+  status      TaskStatus   @default(pending)
+  priority    TaskPriority @default(medium)
+  assigneeId  String?
+  assignee    Agent?       @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  parentId    String?
+  parent      Task?        @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  subtasks    Task[]       @relation("TaskSubtasks")
+  dueAt       DateTime?
+  completedAt DateTime?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, priority])
+  @@index([assigneeId])
+  @@map("tasks")
+}
+
+// ── 13. Schedules ──
+
+model Schedule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  cronExpr    String   // cron expression
+  taskType    String   // post, scan, report, pipeline
+  taskConfig  Json     // what to execute
+  enabled     Boolean  @default(true)
+  lastRunAt   DateTime?
+  nextRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  runs        ScheduleRun[]
+
+  @@map("schedules")
+}
+
+// ── 14. Schedule Runs ──
+
+model ScheduleRun {
+  id         String   @id @default(cuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  status     TaskStatus @default(pending)
+  output     Json?
+  error      String?  @db.Text
+  startedAt  DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([scheduleId, startedAt])
+  @@map("schedule_runs")
+}
+
+// ── 15. Browser Sessions ──
+
+model BrowserSession {
+  id         String   @id @default(cuid())
+  site       String
+  tabId      String?
+  action     String?
+  status     String   @default("idle") // active, idle, error, closed
+  screenshot String?  // path to latest screenshot
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("browser_sessions")
+}
+
+// ── 16. Model Routes ──
+
+model ModelRoute {
+  id        String        @id @default(cuid())
+  taskType  String        @unique // content_gen, reply_draft, mention_scan, sentiment, scheduling, image_gen, video_gen, lip_sync, voiceover, assembly
+  modelName ModelProvider
+  priority  Int           @default(1)
+  enabled   Boolean       @default(true)
+  config    Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("model_routes")
+}
+
+// ── 17. Model Usage Log ──
+
+model ModelUsageLog {
+  id        String        @id @default(cuid())
+  model     ModelProvider
+  taskType  String
+  agentId   String?
+  tokensIn  Int           @default(0)
+  tokensOut Int           @default(0)
+  cost      Float         @default(0)
+  latency   Int?          // milliseconds
+  success   Boolean       @default(true)
+  error     String?
+  createdAt DateTime      @default(now())
+
+  @@index([model, createdAt])
+  @@index([agentId])
+  @@map("model_usage_log")
+}
+
+// ── 18. Observatory Traces ──
+
+model ObsTrace {
+  id        String    @id @default(cuid())
+  name      String
+  model     String
+  totalCost Float     @default(0)
+  totalMs   Int       @default(0)
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  spans     ObsSpan[]
+
+  @@index([createdAt])
+  @@map("obs_traces")
+}
+
+// ── 19. Observatory Spans ──
+
+model ObsSpan {
+  id        String   @id @default(cuid())
+  traceId   String
+  trace     ObsTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   // llm, tool, retrieval, generation
+  model     String?
+  input     String?  @db.Text
+  output    String?  @db.Text
+  tokensIn  Int?
+  tokensOut Int?
+  cost      Float?
+  duration  Int?     // milliseconds
+  error     String?
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  @@index([traceId])
+  @@map("obs_spans")
+}
+
+// ── 20. Analytics Snapshots ──
+
+model AnalyticsSnapshot {
+  id         String   @id @default(cuid())
+  metricType String   // followers, engagement, posts, cost, tokens
+  platform   String?
+  value      Float
+  metadata   Json?
+  capturedAt DateTime @default(now())
+
+  @@index([metricType, capturedAt])
+  @@map("analytics_snapshots")
+}
+
+// ── 21. Activity Log ──
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  type      String   // info, success, warning, error
+  message   String   @db.Text
+  source    String?  // agent, system, user, browser
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type])
+  @@map("activity_log")
+}
+
+// ── 22. Settings ──
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  encrypted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
