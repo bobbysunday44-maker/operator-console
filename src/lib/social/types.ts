@@ -1,60 +1,51 @@
-/* ── OpenClaw Social Media Types ── */
-
-export type PlatformId = "tiktok" | "instagram" | "twitter" | "youtube" | "linkedin" | "reddit";
+/* ── OpenClaw Social Media Types (matches Prisma API responses) ── */
 
 export interface PlatformConfig {
-  id: PlatformId;
+  id: string;
   name: string;
   handle: string;
-  icon: string;
   connected: boolean;
-  /** Color for badges/indicators */
-  color: string;
-  bgColor: string;
-  /** Rate limit: max posts per day */
-  dailyLimit: number;
-  postsToday: number;
+  followers: number;
 }
 
-export type PostStatus = "draft" | "scheduled" | "publishing" | "published" | "failed";
+export type PostStatus = "draft" | "scheduled" | "posting" | "posted" | "failed";
 
-export interface ScheduledPost {
+export interface SocialPost {
   id: string;
-  contentId: string;
-  title: string;
-  caption: string;
-  platforms: PlatformId[];
+  platformId: string;
+  contentItemId: string | null;
+  content: string;
+  mediaUrls: string[];
   status: PostStatus;
-  scheduledAt: number;
-  publishedAt?: number;
-  /** Media type attached */
-  mediaType: "video" | "image" | "text" | "carousel";
-  /** Results per platform after publish */
-  results?: Partial<Record<PlatformId, { success: boolean; postUrl?: string; error?: string }>>;
-  createdAt: number;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  engagement: Record<string, unknown> | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  platform?: { name: string };
+  contentItem?: { id: string; title: string } | null;
 }
-
-export type MentionSentiment = "positive" | "neutral" | "negative";
 
 export interface Mention {
   id: string;
-  platform: PlatformId;
+  type: string;
   author: string;
-  authorHandle: string;
   content: string;
-  sentiment: MentionSentiment;
-  /** Whether auto-reply was sent */
-  replied: boolean;
-  replyContent?: string;
-  postUrl?: string;
-  detectedAt: number;
+  sentiment: string | null;
+  isRead: boolean;
+  isReplied: boolean;
+  replyText: string | null;
+  sourceUrl: string | null;
+  createdAt: string;
 }
 
 export interface SocialStats {
   totalPosts: number;
-  postsToday: number;
-  mentionsToday: number;
-  repliesSent: number;
-  engagementRate: string;
-  topPlatform: PlatformId;
+  posted: number;
+  scheduled: number;
+  draft: number;
+  failed: number;
+  totalMentions: number;
+  unrepliedMentions: number;
 }

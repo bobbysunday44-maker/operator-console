@@ -31,10 +31,11 @@ interface DashboardData {
 interface SocialPost {
   id: string;
   platformId: string;
-  caption: string;
+  content: string;
   status: string;
   scheduledAt: string | null;
   publishedAt: string | null;
+  platform?: { name: string };
 }
 
 interface ModelRoute {
@@ -283,7 +284,7 @@ export default function DashboardPage() {
                       <span className="text-[11px] font-semibold text-oc-text">{post.platformId || "—"}</span>
                       <OcBadge label={post.status} color={sc.color} bg={sc.bg} />
                     </div>
-                    <div className="text-small text-oc-text-secondary leading-[1.4] overflow-hidden text-ellipsis whitespace-nowrap">{post.caption}</div>
+                    <div className="text-small text-oc-text-secondary leading-[1.4] overflow-hidden text-ellipsis whitespace-nowrap">{post.content}</div>
                     <div className="text-tiny text-oc-text-muted font-mono mt-[3px]">
                       {post.scheduledAt ? new Date(post.scheduledAt).toLocaleString() : "Draft"}
                     </div>

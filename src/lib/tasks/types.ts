@@ -1,56 +1,34 @@
-/* ── OpenClaw Task & Schedule Types ── */
+/* ── OpenClaw Task & Schedule Types (matches Prisma API responses) ── */
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "retrying";
-export type TaskPriority = "low" | "medium" | "high" | "critical";
+export type TaskStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Task {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  /** Agent assigned to this task */
-  agentId?: string;
-  agentName?: string;
-  /** Content ID if linked to a pipeline */
-  contentId?: string;
-  /** BullMQ job ID (when connected) */
-  jobId?: string;
-  /** Retry tracking */
-  attempts: number;
-  maxAttempts: number;
-  lastError?: string;
-  /** Timing */
-  createdAt: number;
-  startedAt?: number;
-  completedAt?: number;
-  /** Duration in ms */
-  duration?: number;
+  assigneeId: string | null;
+  assignee: { id: string; name: string } | null;
+  parentId: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
 }
-
-export type ScheduleFrequency = "hourly" | "daily" | "weekly" | "custom";
 
 export interface Schedule {
   id: string;
   name: string;
-  description: string;
-  /** Cron expression */
-  cron: string;
-  frequency: ScheduleFrequency;
-  /** Whether this schedule is active */
+  cronExpr: string;
+  taskType: string;
+  taskConfig: Record<string, unknown> | null;
   enabled: boolean;
-  /** Task template to run */
-  taskTemplate: {
-    title: string;
-    agentId?: string;
-    agentName?: string;
-    priority: TaskPriority;
-  };
-  /** Execution history */
-  lastRunAt?: number;
-  lastRunStatus?: TaskStatus;
-  nextRunAt: number;
-  totalRuns: number;
-  failedRuns: number;
-  createdAt: number;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: { runs: number };
 }

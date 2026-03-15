@@ -72,14 +72,25 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { name, type } = body as { name?: string; type?: string };
+  if (!name || !type) {
+    return NextResponse.json({ error: "name and type are required" }, { status: 400 });
+  }
+
   const agent = await prisma.agent.create({
     data: {
-      name: body.name,
-      type: body.type,
+      name,
+      type,
       status: "offline",
-      personality: body.personality || null,
-      config: body.config || null,
+      personality: (body.personality as string) || null,
+      config: (body.config as object) || null,
     },
   });
 

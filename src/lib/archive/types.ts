@@ -1,30 +1,31 @@
-/* ── OpenClaw Content Archive Types ── */
+/* ── OpenClaw Content Archive Types (matches Prisma API responses) ── */
 
-export type ContentStatus = "complete" | "processing" | "failed" | "archived";
-export type MediaType = "video" | "image" | "text" | "carousel";
+export type ContentStatus =
+  | "idea" | "scripting" | "imaging" | "filming"
+  | "voiceover" | "assembly" | "review" | "approved"
+  | "published" | "failed";
+
+export interface ContentAsset {
+  id: string;
+  type: string;
+  fileName: string;
+  mimeType: string | null;
+}
 
 export interface ArchivedContent {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
+  niche: string | null;
   status: ContentStatus;
-  mediaType: MediaType;
-  /** Platforms it was published to */
-  platforms: string[];
-  /** Quality score from Editor agent */
-  qualityScore?: number;
-  /** Models used */
-  models: string[];
-  /** Cost to produce */
-  cost: number;
-  /** Creation pipeline details */
-  pipeline: {
-    prompt: string;
-    stages: number;
-    duration: number;
-  };
-  /** Tags for search */
+  qualityTier: string;
+  targetPlatforms: string[];
   tags: string[];
-  createdAt: number;
-  publishedAt?: number;
+  script: string | null;
+  finalOutput: string | null;
+  totalCost: number;
+  createdAt: string;
+  updatedAt: string;
+  assets: ContentAsset[];
+  _count: { pipelineRuns: number };
 }

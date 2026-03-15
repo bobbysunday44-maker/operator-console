@@ -1,38 +1,20 @@
-/* ── OpenClaw Analytics Types ── */
-
-export interface DailyMetric {
-  date: string;
-  value: number;
-}
-
-export interface PlatformMetrics {
-  platform: string;
-  followers: number;
-  followersGrowth: number;
-  engagement: number;
-  posts: number;
-  impressions: number;
-}
-
-export interface CostMetric {
-  model: string;
-  dailyCost: number;
-  monthlyCost: number;
-  requests: number;
-  color: string;
-}
+/* ── OpenClaw Analytics Types (matches Prisma API responses) ── */
 
 export interface AnalyticsSummary {
-  totalFollowers: number;
-  followersGrowth: number;
-  totalEngagement: string;
-  contentCreated: number;
-  totalCostToday: number;
-  totalCostMonth: number;
-  platformMetrics: PlatformMetrics[];
-  costByModel: CostMetric[];
-  followerTrend: DailyMetric[];
-  engagementTrend: DailyMetric[];
-  contentTrend: DailyMetric[];
-  costTrend: DailyMetric[];
+  overview: {
+    totalContent: number;
+    contentToday: number;
+    totalPosts: number;
+    postsToday: number;
+    totalTasks: number;
+    tasksCompleted: number;
+    completionRate: number;
+  };
+  usage: {
+    totalRequests: number;
+    totalTokens: number;
+    totalCost: number;
+  };
+  platformBreakdown: { platform: string; posts: number }[];
+  snapshots: { id: string; metricType: string; platform: string | null; value: number; capturedAt: string }[];
 }
