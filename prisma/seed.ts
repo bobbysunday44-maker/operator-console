@@ -154,6 +154,86 @@ async function main() {
   await prisma.activityLog.createMany({ data: activities });
   console.log(`  ✓ ${activities.length} activity log entries seeded`);
 
+  // ── 5. Seed Characters ──
+  const characters = [
+    { name: "Nova", description: "Robot assistant with blue LED eyes", stylePrompt: "Sleek humanoid robot, blue LED eyes, metallic silver body, futuristic design", niche: "tech", referenceImages: [] as string[] },
+    { name: "Alex", description: "Young creator, streetwear style", stylePrompt: "Young person, streetwear style, vibrant colors, urban background, Gen-Z aesthetic", niche: "lifestyle", referenceImages: [] as string[] },
+  ];
+
+  for (const c of characters) {
+    await prisma.character.upsert({
+      where: { id: c.name.toLowerCase() },
+      update: c,
+      create: { id: c.name.toLowerCase(), ...c, isActive: true },
+    });
+  }
+  console.log(`  ✓ ${characters.length} characters seeded`);
+
+  // ── 6. Seed Sample Content with Pipeline Runs ──
+  const sampleContent = await prisma.contentItem.upsert({
+    where: { id: "cnt-demo-001" },
+    update: {},
+    create: {
+      id: "cnt-demo-001",
+      title: "AI Agents Automate Your Social Media",
+      description: "Short-form video about AI agents managing social media platforms autonomously",
+      niche: "tech",
+      tags: ["TikTok", "AI", "automation", "trending"],
+      targetPlatforms: ["TikTok", "Instagram", "Twitter/X"],
+      status: "filming",
+      qualityTier: "ai_reviewer",
+      totalCost: 0.055,
+      script: 'POV: your AI agent just posted to 6 platforms while you were sleeping 🤖✨ #AIautomation #ContentCreator',
+    },
+  });
+
+  // Pipeline runs for the demo content
+  const pipelineRuns = [
+    {
+      contentItemId: sampleContent.id,
+      stage: "prompt" as const,
+      model: "claude" as const,
+      status: "completed" as const,
+      inputPrompt: "Create a TikTok post about AI agents automating social media. Trendy, Gen-Z tone, hook in first 2 seconds.",
+      outputPreview: 'Image prompt: "A sleek robot hand scrolling through a phone showing Instagram, TikTok, Twitter feeds. Neon glow, dark background, cinematic lighting, 8K detail."',
+      tokensIn: 124,
+      tokensOut: 287,
+      cost: 0.003,
+      duration: 2100,
+      completedAt: new Date(),
+    },
+    {
+      contentItemId: sampleContent.id,
+      stage: "image" as const,
+      model: "gemini_nano_banana" as const,
+      status: "completed" as const,
+      inputPrompt: "A sleek robot hand scrolling through a phone showing Instagram, TikTok, Twitter feeds. Neon glow, dark background, cinematic lighting, 8K detail.",
+      outputPath: "/outputs/cnt-demo-001/image_001.png",
+      tokensIn: null,
+      tokensOut: null,
+      cost: 0.002,
+      duration: 4800,
+      completedAt: new Date(),
+    },
+    {
+      contentItemId: sampleContent.id,
+      stage: "video" as const,
+      model: "gemini_veo" as const,
+      status: "in_progress" as const,
+      inputPrompt: "Camera slowly zooms into a phone screen where AI agents are posting content autonomously. Glitch effects, fast cuts, trending audio vibe.",
+      cost: 0.05,
+      duration: null,
+      completedAt: null,
+    },
+  ];
+
+  // Delete existing runs for idempotent seeding
+  await prisma.pipelineRun.deleteMany({ where: { contentItemId: sampleContent.id } });
+  for (const run of pipelineRuns) {
+    await prisma.pipelineRun.create({ data: run });
+  }
+  console.log(`  ✓ Sample content + ${pipelineRuns.length} pipeline runs seeded`);
+
   console.log("\nDone! OpenClaw database is ready.");
 }
 
