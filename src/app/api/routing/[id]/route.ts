@@ -1,12 +1,14 @@
-/* PATCH /api/routing/[id] — Update a routing rule (model assignment, enable/disable) */
+/* PATCH /api/routing/[id] — Update a routing rule */
 
 import { NextResponse } from "next/server";
-import { routingStore } from "@/lib/routing/routing-store";
+import { prisma } from "@/lib/db/prisma";
+import type { ModelProvider } from "@/generated/prisma/client";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -14,9 +16,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const rule = routingStore.updateRule(params.id, body as { assignedModel?: never; enabled?: never });
-  if (!rule) {
+  try {
+    const rule = await prisma.modelRoute.update({
+      where: { id },
+      data: {
+        ...(body.modelName !== undefined && { modelName: body.modelName as ModelProvider }),
+        ...(body.enabled !== undefined && { enabled: body.enabled as boolean }),
+        ...(body.priority !== undefined && { priority: body.priority as number }),
+        ...(body.config !== undefined && { config: body.config as object }),
+      },
+    });
+    return NextResponse.json({ rule });
+  } catch {
     return NextResponse.json({ error: "Rule not found" }, { status: 404 });
   }
-  return NextResponse.json({ rule });
 }

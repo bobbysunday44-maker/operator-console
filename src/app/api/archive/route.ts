@@ -1,29 +1,49 @@
 /* GET /api/archive — List archived content
- * Query: ?status=complete|processing|failed|archived&type=video|image|text|carousel&search=keyword
+ * Query: ?status=...&type=video|image|text&search=keyword&view=stats
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { archiveStore } from "@/lib/archive/archive-store";
-import type { ContentStatus, MediaType } from "@/lib/archive/types";
+import { prisma } from "@/lib/db/prisma";
 
-const VALID_STATUSES = new Set<ContentStatus>(["complete", "processing", "failed", "archived"]);
-const VALID_TYPES = new Set<MediaType>(["video", "image", "text", "carousel"]);
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const rawStatus = request.nextUrl.searchParams.get("status");
   const rawType = request.nextUrl.searchParams.get("type");
-  const search = request.nextUrl.searchParams.get("search") || undefined;
+  const search = request.nextUrl.searchParams.get("search");
   const rawView = request.nextUrl.searchParams.get("view");
 
   if (rawView === "stats") {
-    return NextResponse.json(archiveStore.getStats());
+    const [total, byStatus] = await Promise.all([
+      prisma.contentItem.count(),
+      prisma.contentItem.groupBy({ by: ["status"], _count: true }),
+    ]);
+
+    const statusMap = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
+    return NextResponse.json({ total, byStatus: statusMap });
   }
 
-  const filters: { status?: ContentStatus; mediaType?: MediaType; search?: string } = {};
-  if (rawStatus && VALID_STATUSES.has(rawStatus as ContentStatus)) filters.status = rawStatus as ContentStatus;
-  if (rawType && VALID_TYPES.has(rawType as MediaType)) filters.mediaType = rawType as MediaType;
-  if (search) filters.search = search;
+  const where: Record<string, unknown> = {};
+  if (rawStatus) where.status = rawStatus;
+  if (rawType) {
+    where.targetPlatforms = { has: rawType };
+  }
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
+  }
 
-  const items = archiveStore.listItems(Object.keys(filters).length > 0 ? filters : undefined);
+  const items = await prisma.contentItem.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      assets: { select: { id: true, type: true, fileName: true, mimeType: true } },
+      _count: { select: { pipelineRuns: true } },
+    },
+    take: 50,
+  });
+
   return NextResponse.json({ items });
 }

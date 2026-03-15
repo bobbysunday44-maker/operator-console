@@ -1,16 +1,24 @@
 /* GET /api/tasks/[id] — Get task detail
- * PATCH /api/tasks/[id] — Update task status
+ * PATCH /api/tasks/[id] — Update task
  * POST /api/tasks/[id] — Retry a failed task
  */
 
 import { NextResponse } from "next/server";
-import { taskStore } from "@/lib/tasks/task-store";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const task = taskStore.getTask(params.id);
+  const { id } = await params;
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: {
+      assignee: { select: { id: true, name: true } },
+      subtasks: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
   if (!task) {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
@@ -19,8 +27,9 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -28,30 +37,45 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Only allow safe fields — prevent arbitrary field overwrites
-  const allowed: Record<string, unknown> = {};
-  const SAFE_KEYS = ["status", "lastError", "attempts", "startedAt", "completedAt", "duration"] as const;
+  const SAFE_KEYS = ["status", "title", "description", "priority", "assigneeId", "dueAt", "metadata"] as const;
+  const data: Record<string, unknown> = {};
   for (const key of SAFE_KEYS) {
-    if (key in body) allowed[key] = body[key];
+    if (key in body) data[key] = body[key];
   }
-  const task = taskStore.updateTask(params.id, allowed as Partial<Pick<import("@/lib/tasks/types").Task, (typeof SAFE_KEYS)[number]>>);
-  if (!task) {
+
+  if (data.status === "completed") {
+    data.completedAt = new Date();
+  }
+  if (data.dueAt && typeof data.dueAt === "string") {
+    data.dueAt = new Date(data.dueAt as string);
+  }
+
+  try {
+    const task = await prisma.task.update({ where: { id }, data });
+    return NextResponse.json({ task });
+  } catch {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
-  return NextResponse.json({ task });
 }
 
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const existing = taskStore.getTask(params.id);
+  const { id } = await params;
+  const existing = await prisma.task.findUnique({ where: { id } });
+
   if (!existing) {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
   if (existing.status !== "failed") {
     return NextResponse.json({ error: "Only failed tasks can be retried" }, { status: 409 });
   }
-  const task = taskStore.retryTask(params.id);
+
+  const task = await prisma.task.update({
+    where: { id },
+    data: { status: "pending", completedAt: null },
+  });
+
   return NextResponse.json({ task });
 }

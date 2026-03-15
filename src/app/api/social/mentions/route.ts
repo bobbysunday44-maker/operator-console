@@ -1,16 +1,24 @@
 /* GET /api/social/mentions — List brand mentions
- * POST /api/social/mentions/reply — Auto-reply to a mention
+ * POST /api/social/mentions — Mark as replied
  *
  * Query: ?unreplied=true
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { socialStore } from "@/lib/social/social-store";
-import { autoReply } from "@/lib/social/auto-reply";
+import { prisma } from "@/lib/db/prisma";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const unreplied = request.nextUrl.searchParams.get("unreplied") === "true";
-  const mentions = socialStore.listMentions(unreplied);
+
+  const where = unreplied ? { isReplied: false } : {};
+
+  const mentions = await prisma.mention.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
 
   return NextResponse.json({ mentions });
 }
@@ -23,16 +31,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { mentionId } = body as { mentionId?: string };
+  const { mentionId, replyText } = body as { mentionId?: string; replyText?: string };
   if (!mentionId) {
     return NextResponse.json({ error: "mentionId is required" }, { status: 400 });
   }
 
-  const result = autoReply(mentionId);
-  if (!result.success) {
-    const status = result.error === "Already replied" ? 409 : 404;
-    return NextResponse.json({ error: result.error }, { status });
+  const mention = await prisma.mention.findUnique({ where: { id: mentionId } });
+  if (!mention) {
+    return NextResponse.json({ error: "Mention not found" }, { status: 404 });
+  }
+  if (mention.isReplied) {
+    return NextResponse.json({ error: "Already replied" }, { status: 409 });
   }
 
-  return NextResponse.json({ success: true, reply: result.reply });
+  const updated = await prisma.mention.update({
+    where: { id: mentionId },
+    data: {
+      isReplied: true,
+      replyText: replyText || "Thanks for the mention! 🙌",
+    },
+  });
+
+  return NextResponse.json({ success: true, mention: updated });
 }

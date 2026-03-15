@@ -1,19 +1,28 @@
-/* GET /api/social/posts — List scheduled/published posts
- * POST /api/social/posts — Create a new scheduled post
+/* GET /api/social/posts — List posts
+ * POST /api/social/posts — Create a new post
  *
- * Query: ?status=scheduled|published|draft
+ * Query: ?status=draft|scheduled|posting|posted|failed
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { socialStore } from "@/lib/social/social-store";
-import type { PostStatus, PlatformId } from "@/lib/social/types";
+import { prisma } from "@/lib/db/prisma";
 
-const VALID_STATUSES = new Set<PostStatus>(["draft", "scheduled", "publishing", "published", "failed"]);
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const rawStatus = request.nextUrl.searchParams.get("status");
-  const status = rawStatus && VALID_STATUSES.has(rawStatus as PostStatus) ? (rawStatus as PostStatus) : undefined;
-  const posts = socialStore.listPosts(status);
+
+  const where = rawStatus ? { status: rawStatus as "draft" | "scheduled" | "posting" | "posted" | "failed" } : {};
+
+  const posts = await prisma.socialPost.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      platform: { select: { name: true } },
+      contentItem: { select: { id: true, title: true } },
+    },
+    take: 50,
+  });
 
   return NextResponse.json({ posts });
 }
@@ -26,27 +35,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { contentId, title, caption, platforms, scheduledAt, mediaType } = body as {
-    contentId?: string;
-    title?: string;
-    caption?: string;
-    platforms?: PlatformId[];
-    scheduledAt?: number;
-    mediaType?: string;
+  const { contentItemId, platformId, content, mediaUrls, scheduledAt } = body as {
+    contentItemId?: string;
+    platformId?: string;
+    content?: string;
+    mediaUrls?: string[];
+    scheduledAt?: string;
   };
 
-  if (!caption || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
-    return NextResponse.json({ error: "caption and platforms[] are required" }, { status: 400 });
+  if (!content || !platformId) {
+    return NextResponse.json({ error: "content and platformId are required" }, { status: 400 });
   }
 
-  const post = socialStore.createPost({
-    contentId: contentId || `CNT-${Date.now()}`,
-    title: title || caption.slice(0, 40),
-    caption,
-    platforms,
-    status: scheduledAt ? "scheduled" : "draft",
-    scheduledAt: scheduledAt || Date.now(),
-    mediaType: (["video", "image", "text", "carousel"].includes(mediaType || "") ? mediaType : "text") as "video" | "image" | "text" | "carousel",
+  const post = await prisma.socialPost.create({
+    data: {
+      contentItemId: contentItemId || null,
+      platformId,
+      content,
+      mediaUrls: mediaUrls || [],
+      status: scheduledAt ? "scheduled" : "draft",
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+    },
   });
 
   return NextResponse.json({ post }, { status: 201 });

@@ -1,34 +1,67 @@
 /* POST /api/telegram — Telegram Bot Webhook
- * Receives updates from Telegram, processes them, sends responses.
- *
- * To set up:
- * curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
- *   -H "Content-Type: application/json" \
- *   -d '{"url": "https://your-domain.com/api/telegram"}'
+ * GET /api/telegram — Health check
  */
 
 import { NextResponse } from "next/server";
-import { handleTelegramMessage, type TelegramUpdate } from "@/lib/telegram/bot";
+import { prisma } from "@/lib/db/prisma";
+
+interface TelegramUpdate {
+  message?: {
+    chat: { id: number };
+    from?: { first_name?: string; username?: string };
+    text?: string;
+  };
+}
 
 export async function POST(request: Request) {
   try {
     const update: TelegramUpdate = await request.json();
 
-    // Only process text messages
     if (update.message?.text) {
-      await handleTelegramMessage(update);
+      const chatId = update.message.chat.id;
+      const text = update.message.text;
+      const from = update.message.from?.first_name || "User";
+
+      // Log to conversation
+      let conversation = await prisma.conversation.findFirst({
+        where: { source: "telegram", title: `Telegram: ${chatId}` },
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: { title: `Telegram: ${chatId}`, source: "telegram", model: "claude-sonnet-4-6" },
+        });
+      }
+
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: "user",
+          content: `[${from}] ${text}`,
+        },
+      });
+
+      // Send reply via Telegram API
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (token) {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `Received: "${text}". OpenClaw is processing your request.`,
+          }),
+        });
+      }
     }
 
-    // Telegram expects 200 OK quickly
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[Telegram Webhook] Error:", err);
-    // Still return 200 so Telegram doesn't retry
     return NextResponse.json({ ok: true });
   }
 }
 
-// GET for health check / webhook verification
 export async function GET() {
   return NextResponse.json({
     status: "active",

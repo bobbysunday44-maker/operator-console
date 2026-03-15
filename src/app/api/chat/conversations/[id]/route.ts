@@ -3,13 +3,18 @@
  */
 
 import { NextResponse } from "next/server";
-import { chatStore } from "@/lib/chat/chat-store";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const conversation = chatStore.getConversation(params.id);
+  const { id } = await params;
+  const conversation = await prisma.conversation.findUnique({
+    where: { id },
+    include: { messages: { orderBy: { createdAt: "asc" } } },
+  });
+
   if (!conversation) {
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
@@ -18,11 +23,15 @@ export async function GET(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const deleted = chatStore.deleteConversation(params.id);
-  if (!deleted) {
+  const { id } = await params;
+  try {
+    // Delete messages first, then conversation
+    await prisma.message.deleteMany({ where: { conversationId: id } });
+    await prisma.conversation.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch {
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
-  return NextResponse.json({ success: true });
 }

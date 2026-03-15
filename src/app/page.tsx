@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LiveFeed } from "@/components/dashboard/live-feed";
@@ -9,66 +9,50 @@ import {
   SectionHeader,
   StatusDot,
   OcBadge,
-  ProgressBar,
 } from "@/components/shared";
 
-// ── Mock Data ──
-const agents = [
-  { id: "ag-001", name: "Crawler Alpha", status: "active" as const, currentTask: "scrape:linkedin/jobs", tasksCompleted: 1247, cpu: 42 },
-  { id: "ag-002", name: "Parser Beta", status: "active" as const, currentTask: "parse:pdf-batch-09", tasksCompleted: 893, cpu: 67 },
-  { id: "ag-003", name: "Indexer Gamma", status: "idle" as const, currentTask: null, tasksCompleted: 2104, cpu: 8 },
-  { id: "ag-004", name: "Social Bot Delta", status: "active" as const, currentTask: "post:twitter/scheduled", tasksCompleted: 456, cpu: 34 },
-  { id: "ag-005", name: "Engage Epsilon", status: "active" as const, currentTask: "reply:ig/mentions", tasksCompleted: 312, cpu: 28 },
-  { id: "ag-006", name: "Router Zeta", status: "active" as const, currentTask: "route:queue-dispatch", tasksCompleted: 3891, cpu: 23 },
-];
+// ── Types ──
+interface DashboardData {
+  kpis: {
+    activeAgents: number;
+    totalAgents: number;
+    contentToday: number;
+    postsToday: number;
+    totalTasks: number;
+    pipelineRuns: number;
+    totalTokens: number;
+    costToday: number;
+  };
+  agents: { id: string; name: string; status: string; currentTask: string | null; type: string }[];
+  platforms: { name: string; handle: string; connected: boolean; followers: number }[];
+  recentActivity: { id: string; type: string; message: string; source: string; createdAt: string }[];
+}
 
+interface SocialPost {
+  id: string;
+  platformId: string;
+  caption: string;
+  status: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+}
 
-const platforms = [
-  { name: "Twitter/X", handle: "openclaw_ai", connected: true, followers: "2.4K", postsToday: 6, engagement: "4.2%" },
-  { name: "Instagram", handle: "openclaw.ai", connected: true, followers: "1.1K", postsToday: 3, engagement: "6.8%" },
-  { name: "LinkedIn", handle: "openclaw", connected: true, followers: "890", postsToday: 2, engagement: "3.1%" },
-  { name: "TikTok", handle: "openclaw_ai", connected: true, followers: "1.2K", postsToday: 4, engagement: "8.9%" },
-  { name: "YouTube", handle: "OpenClawAI", connected: true, followers: "340", postsToday: 1, engagement: "2.4%" },
-  { name: "Reddit", handle: "openclaw_bot", connected: true, followers: "580", postsToday: 5, engagement: "5.7%" },
-  { name: "Facebook", handle: "openclaw", connected: false, followers: "—", postsToday: 0, engagement: "—" },
-  { name: "Threads", handle: "openclaw", connected: false, followers: "—", postsToday: 0, engagement: "—" },
-];
+interface ModelRoute {
+  id: string;
+  taskType: string;
+  modelName: string;
+  enabled: boolean;
+  priority: number;
+}
 
-const postQueue = [
-  { platform: "Twitter/X", content: "AI agents are reshaping how we think about automation. Here's what we learned building OpenClaw...", time: "Scheduled: 3:00 PM", status: "scheduled" },
-  { platform: "Instagram", content: "Behind the scenes of our multi-agent architecture. Swipe to see the full pipeline →", time: "Scheduled: 4:30 PM", status: "scheduled" },
-  { platform: "LinkedIn", content: "We just shipped browser-native automation for our agent fleet.", time: "Scheduled: 5:00 PM", status: "scheduled" },
-  { platform: "TikTok", content: "Watch our AI agent post to 6 platforms simultaneously in under 30 seconds", time: "Posted: 1:45 PM", status: "posted" },
-  { platform: "Reddit", content: "r/artificial — We open-sourced our multi-model routing system.", time: "Posted: 12:30 PM", status: "posted" },
-  { platform: "Twitter/X", content: "Replying to @user: Great question! Our agent swarm handles that by...", time: "Pending review", status: "review" },
-];
+interface BrowserSession {
+  id: string;
+  site: string;
+  action: string;
+  status: string;
+}
 
-const modelRoutes = [
-  { task: "Content generation (posts, captions)", model: "Claude Sonnet", active: true, calls: "120" },
-  { task: "Reply drafting (DMs, comments)", model: "Claude Sonnet", active: true, calls: "340" },
-  { task: "Mention scanning & triage", model: "Claude Sonnet", active: true, calls: "890" },
-  { task: "Sentiment analysis", model: "Claude Sonnet", active: true, calls: "450" },
-  { task: "Content scheduling & routing", model: "Claude Sonnet", active: true, calls: "220" },
-  { task: "Image caption generation", model: "Claude Sonnet", active: true, calls: "85" },
-  { task: "Hashtag research & trending", model: "Claude Sonnet", active: false, calls: "0" },
-  { task: "Engagement analytics summary", model: "Claude Sonnet", active: true, calls: "60" },
-];
-
-const browserSessions = [
-  { site: "twitter.com", action: "Posting scheduled content — tab 1", status: "active" as const },
-  { site: "instagram.com", action: "Monitoring story mentions — tab 2", status: "active" as const },
-  { site: "linkedin.com", action: "CAPTCHA detected — awaiting manual input", status: "error" as const },
-  { site: "tiktok.com", action: "Uploading video clip — 78% complete", status: "active" as const },
-  { site: "reddit.com", action: "Replying to comments in r/artificial", status: "active" as const },
-];
-
-const hourlyUsage = [
-  { label: "6a", value: 120 }, { label: "7a", value: 340 }, { label: "8a", value: 580 },
-  { label: "9a", value: 890 }, { label: "10a", value: 1200 }, { label: "11a", value: 980 },
-  { label: "12p", value: 760 }, { label: "1p", value: 1100 }, { label: "2p", value: 1340 },
-  { label: "3p", value: 0 }, { label: "4p", value: 0 }, { label: "5p", value: 0 },
-];
-
+// ── Static data (team, until user management is built) ──
 const users = [
   { name: "Bobby Chen", email: "bobby@openclaw.io", role: "admin", lastActive: "2 min ago", apiCalls: "14,203" },
   { name: "Sarah Kim", email: "sarah@openclaw.io", role: "operator", lastActive: "12 min ago", apiCalls: "8,421" },
@@ -77,7 +61,6 @@ const users = [
 ];
 
 // ── Sub-components ──
-
 
 function BarChart({ data }: { data: { label: string; value: number; highlight?: boolean }[] }) {
   const max = Math.max(...data.map(d => d.value)) || 1;
@@ -132,21 +115,61 @@ function DonutChart({ segments }: { segments: { label: string; value: number; co
   );
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 // ── Main Page ──
 
 export default function DashboardPage() {
   const router = useRouter();
   const [now, setNow] = useState(new Date());
   const [toast, setToast] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [routes, setRoutes] = useState<ModelRoute[]>([]);
+  const [sessions, setSessions] = useState<BrowserSession[]>([]);
+
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
+  const fetchData = useCallback(async () => {
+    const [dashRes, postRes, routeRes, sessionRes] = await Promise.all([
+      fetch("/api/dashboard").then((r) => r.json()).catch(() => null),
+      fetch("/api/social/posts?status=scheduled").then((r) => r.json()).catch(() => ({ posts: [] })),
+      fetch("/api/routing").then((r) => r.json()).catch(() => ({ rules: [] })),
+      fetch("/api/browser").then((r) => r.json()).catch(() => ({ sessions: [] })),
+    ]);
+    if (dashRes) setDashboard(dashRes);
+    setPosts(postRes.posts || []);
+    setRoutes(routeRes.rules || []);
+    setSessions(sessionRes.sessions || []);
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2000);
   }
+
+  const kpis = dashboard?.kpis;
+  const agents = dashboard?.agents || [];
+  const platforms = dashboard?.platforms || [];
+
+  // Generate hourly usage placeholder (will be real when usage tracking populates)
+  const hourlyUsage = Array.from({ length: 12 }, (_, i) => ({
+    label: `${i + 6 > 12 ? i + 6 - 12 : i + 6}${i + 6 >= 12 ? "p" : "a"}`,
+    value: Math.floor(Math.random() * 500) + 100,
+  }));
 
   return (
     <>
@@ -184,10 +207,10 @@ export default function DashboardPage() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-4 gap-3.5 mb-5">
-        <KPICard label="Active Agents" value="5 / 6" change="2 more" changeType="up" sparkData={[2, 3, 3, 4, 3, 4, 5, 5, 5]} icon="⬡" />
-        <KPICard label="Posts Today" value="21" change="38%" changeType="up" sparkData={[4, 6, 8, 10, 12, 15, 17, 19, 21]} icon="◈" />
-        <KPICard label="Tokens Used" value="1.82M" change="8.1%" changeType="up" sparkData={[800, 920, 1100, 1050, 1200, 1400, 1600, 1750, 1820]} icon="⟡" />
-        <KPICard label="Avg Engagement" value="5.2%" change="1.1%" changeType="up" sparkData={[3.1, 3.4, 3.8, 4.0, 4.2, 4.5, 4.8, 5.0, 5.2]} icon="♡" />
+        <KPICard label="Active Agents" value={kpis ? `${kpis.activeAgents} / ${kpis.totalAgents}` : "—"} change="" changeType="up" sparkData={[2, 3, 3, 4, 3, 4, 5, 5, kpis?.activeAgents || 5]} icon="⬡" />
+        <KPICard label="Posts Today" value={kpis ? String(kpis.postsToday) : "—"} change="" changeType="up" sparkData={[0, 1, 2, 3, 4, 5, 6, 7, kpis?.postsToday || 0]} icon="◈" />
+        <KPICard label="Tokens Used" value={kpis ? formatTokens(kpis.totalTokens) : "—"} change="" changeType="up" sparkData={[0, 100, 200, 400, 600, 800, 1000, 1200, kpis?.totalTokens || 0]} icon="⟡" />
+        <KPICard label="Cost Today" value={kpis ? `$${kpis.costToday.toFixed(2)}` : "—"} change="" changeType="up" sparkData={[0, 0.1, 0.2, 0.5, 0.8, 1.0, 1.2, 1.4, kpis?.costToday || 0]} icon="♡" />
       </div>
 
       {/* Social Media Command Center */}
@@ -211,14 +234,13 @@ export default function DashboardPage() {
                 <StatusDot status={p.connected ? "connected" : "disconnected"} />
               </div>
               {p.connected && (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   {[
-                    { val: p.followers, label: "Followers" },
-                    { val: String(p.postsToday), label: "Posted" },
-                    { val: p.engagement, label: "Engage%" },
+                    { val: p.followers?.toLocaleString() || "0", label: "Followers" },
+                    { val: p.connected ? "Active" : "—", label: "Status" },
                   ].map((s) => (
                     <div key={s.label} className="text-center py-1.5 bg-oc-bg rounded-[6px]">
-                      <div className={`text-[14px] font-bold ${s.label === "Engage%" ? "text-oc-green" : "text-oc-text"}`}>{s.val}</div>
+                      <div className="text-[14px] font-bold text-oc-text">{s.val}</div>
                       <div className="text-[9px] text-oc-text-muted uppercase tracking-[0.05em]">{s.label}</div>
                     </div>
                   ))}
@@ -240,26 +262,31 @@ export default function DashboardPage() {
       {/* Post Queue + Model Routing + Browser Sessions */}
       <div className="grid grid-cols-[1fr_1fr_300px] gap-3.5 mb-5">
         <OcCard>
-          <SectionHeader title="Content Queue" subtitle="Scheduled, posted & pending review" action="Schedule" onAction={() => router.push("/tasks")} />
+          <SectionHeader title="Content Queue" subtitle="Scheduled & posted content" action="Schedule" onAction={() => router.push("/tasks")} />
           <div className="max-h-[310px] overflow-y-auto">
-            {postQueue.map((post, i) => {
-              const platformColors: Record<string, string> = { "Twitter/X": "#000", "Instagram": "#E4405F", "LinkedIn": "#0A66C2", "TikTok": "#000", "Reddit": "#FF4500" };
+            {posts.length === 0 && (
+              <div className="text-center py-8 text-small text-oc-text-muted">No scheduled posts yet</div>
+            )}
+            {posts.map((post) => {
               const statusColors: Record<string, { color: string; bg: string }> = {
                 scheduled: { color: "#2563EB", bg: "#EFF4FF" },
                 posted: { color: "#059669", bg: "#ECFDF5" },
-                review: { color: "#D97706", bg: "#FFFBEB" },
+                draft: { color: "#D97706", bg: "#FFFBEB" },
+                failed: { color: "#DC2626", bg: "#FEF2F2" },
               };
-              const sc = statusColors[post.status] || statusColors.scheduled;
+              const sc = statusColors[post.status] || statusColors.draft;
               return (
-                <div key={i} className="flex gap-3 py-2.5 border-b border-oc-border-light items-start">
-                  <div className="w-1 h-9 rounded-[2px] mt-0.5 shrink-0" style={{ backgroundColor: platformColors[post.platform] || "#2563EB" }} />
+                <div key={post.id} className="flex gap-3 py-2.5 border-b border-oc-border-light items-start">
+                  <div className="w-1 h-9 rounded-[2px] mt-0.5 shrink-0 bg-oc-blue" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-[3px]">
-                      <span className="text-[11px] font-semibold text-oc-text">{post.platform}</span>
+                      <span className="text-[11px] font-semibold text-oc-text">{post.platformId || "—"}</span>
                       <OcBadge label={post.status} color={sc.color} bg={sc.bg} />
                     </div>
-                    <div className="text-small text-oc-text-secondary leading-[1.4] overflow-hidden text-ellipsis whitespace-nowrap">{post.content}</div>
-                    <div className="text-tiny text-oc-text-muted font-mono mt-[3px]">{post.time}</div>
+                    <div className="text-small text-oc-text-secondary leading-[1.4] overflow-hidden text-ellipsis whitespace-nowrap">{post.caption}</div>
+                    <div className="text-tiny text-oc-text-muted font-mono mt-[3px]">
+                      {post.scheduledAt ? new Date(post.scheduledAt).toLocaleString() : "Draft"}
+                    </div>
                   </div>
                 </div>
               );
@@ -272,21 +299,18 @@ export default function DashboardPage() {
           <div className="mb-3 flex gap-2">
             <div className="flex-1 p-2.5 bg-oc-purple-light rounded-oc-sm text-center">
               <div className="text-[16px] font-bold text-oc-purple">
-                {modelRoutes.reduce((s, r) => s + parseInt(r.calls), 0)}
+                {routes.length}
               </div>
-              <div className="text-tiny text-oc-purple font-medium">Claude calls/hr</div>
+              <div className="text-tiny text-oc-purple font-medium">Active routes</div>
             </div>
           </div>
-          {modelRoutes.map((route, i) => (
-            <div key={i} className="flex items-center justify-between py-[9px] border-b border-oc-border-light">
+          {routes.map((route) => (
+            <div key={route.id} className="flex items-center justify-between py-[9px] border-b border-oc-border-light">
               <div className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${route.active ? "bg-oc-green" : "bg-oc-text-muted"}`} />
-                <span className="text-small font-medium text-oc-text">{route.task}</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${route.enabled ? "bg-oc-green" : "bg-oc-text-muted"}`} />
+                <span className="text-small font-medium text-oc-text">{route.taskType}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <OcBadge label={route.model} color="#7C3AED" bg="#F5F3FF" />
-                <span className="text-tiny text-oc-text-muted font-mono">{route.calls}/hr</span>
-              </div>
+              <OcBadge label={route.modelName} color="#7C3AED" bg="#F5F3FF" />
             </div>
           ))}
         </OcCard>
@@ -294,21 +318,19 @@ export default function DashboardPage() {
         <OcCard>
           <SectionHeader title="Chrome Sessions" subtitle="Live browser automation" />
           <div className="flex flex-col gap-2">
-            {browserSessions.map((s, i) => (
-              <div key={i} className="p-[10px_12px] rounded-oc-sm bg-oc-bg flex items-center gap-2.5">
+            {sessions.length === 0 && (
+              <div className="text-center py-4 text-small text-oc-text-muted">No active sessions</div>
+            )}
+            {sessions.map((s) => (
+              <div key={s.id} className="p-[10px_12px] rounded-oc-sm bg-oc-bg flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-[6px] bg-oc-card border border-oc-border flex items-center justify-center text-[14px]">🌐</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-small font-semibold text-oc-text">{s.site}</div>
                   <div className="text-tiny text-oc-text-muted font-mono overflow-hidden text-ellipsis whitespace-nowrap">{s.action}</div>
                 </div>
-                <StatusDot status={s.status} />
+                <StatusDot status={s.status as "active" | "error" | "idle"} />
               </div>
             ))}
-          </div>
-          <div className="mt-3.5 p-[10px_12px] bg-oc-bg rounded-oc-sm text-[11px]">
-            <div className="flex justify-between mb-1"><span className="text-oc-text-muted">Connection</span><span className="font-semibold text-oc-green">Stable</span></div>
-            <div className="flex justify-between mb-1"><span className="text-oc-text-muted">Extension</span><span className="font-mono text-tiny text-oc-text">v1.0.36</span></div>
-            <div className="flex justify-between"><span className="text-oc-text-muted">Auth state</span><span className="font-semibold text-oc-green">Logged in (5)</span></div>
           </div>
         </OcCard>
       </div>
@@ -317,23 +339,18 @@ export default function DashboardPage() {
       <div className="grid grid-cols-[1fr_300px] gap-3.5 mb-5">
         <OcCard>
           <SectionHeader title="Agent Fleet" subtitle="Real-time agent status and workload" action="Manage" onAction={() => router.push("/agents")} />
-          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
-            <span>Agent</span><span>Status</span><span>Current Task</span><span>Done</span><span>Load</span><span></span>
+          <div className="grid grid-cols-[2fr_1fr_1.2fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
+            <span>Agent</span><span>Status</span><span>Current Task</span><span></span>
           </div>
           {agents.map((a) => (
-            <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
+            <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
               <div className="flex items-center gap-2">
-                <StatusDot status={a.status} />
+                <StatusDot status={a.status === "active" ? "connected" : a.status === "error" ? "error" : "idle"} />
                 <span className="font-semibold text-oc-text">{a.name}</span>
-                <span className="text-tiny text-oc-text-muted font-mono bg-oc-bg px-1.5 py-[1px] rounded">{a.id}</span>
+                <span className="text-tiny text-oc-text-muted font-mono bg-oc-bg px-1.5 py-[1px] rounded">{a.type}</span>
               </div>
               <div className="text-small text-oc-text-secondary">{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</div>
               <div className="font-mono text-[11px] text-oc-text-secondary">{a.currentTask || "—"}</div>
-              <div className="font-mono text-small text-oc-text">{a.tasksCompleted}</div>
-              <div>
-                <ProgressBar value={a.cpu} color={a.cpu > 80 ? "#D97706" : "#2563EB"} />
-                <span className="text-[9px] text-oc-text-muted mt-0.5 block">{a.cpu}%</span>
-              </div>
               <div className="text-right">
                 <button onClick={() => router.push("/agents")} className="text-[11px] font-semibold text-oc-blue bg-transparent border-none cursor-pointer font-sans">Details →</button>
               </div>
@@ -344,20 +361,19 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-3.5">
           <OcCard>
             <SectionHeader title="Token Usage" subtitle="Today" />
-            <BarChart data={hourlyUsage.map(h => ({ ...h, highlight: h.label === "2p" }))} />
+            <BarChart data={hourlyUsage.map((h, i) => ({ ...h, highlight: i === hourlyUsage.length - 1 }))} />
             <div className="mt-2.5 flex justify-between text-tiny">
-              <span className="text-oc-text-muted">Quota: <span className="font-semibold text-oc-text">1.82M / 2.4M</span></span>
-              <span className="text-oc-amber font-semibold">75.8%</span>
+              <span className="text-oc-text-muted">Tokens: <span className="font-semibold text-oc-text">{kpis ? formatTokens(kpis.totalTokens) : "—"}</span></span>
+              <span className="text-oc-text-muted">Cost: <span className="font-semibold text-oc-text">${kpis?.costToday.toFixed(2) || "0.00"}</span></span>
             </div>
-            <div className="mt-1"><ProgressBar value={75.8} color="#D97706" /></div>
           </OcCard>
           <OcCard>
             <SectionHeader title="Task Distribution" />
             <DonutChart segments={[
-              { label: "Social Posts", value: 35, color: "#2563EB" },
-              { label: "Engagement", value: 28, color: "#059669" },
-              { label: "Monitoring", value: 22, color: "#0D9488" },
-              { label: "Content Gen", value: 15, color: "#7C3AED" },
+              { label: "Social Posts", value: kpis?.postsToday || 0, color: "#2563EB" },
+              { label: "Pipeline Runs", value: kpis?.pipelineRuns || 0, color: "#059669" },
+              { label: "Content", value: kpis?.contentToday || 0, color: "#0D9488" },
+              { label: "Tasks", value: kpis?.totalTasks || 0, color: "#7C3AED" },
             ]} />
           </OcCard>
         </div>
@@ -401,7 +417,7 @@ export default function DashboardPage() {
           <div className="mt-3.5 p-[12px_14px] bg-oc-bg rounded-oc-sm flex justify-between items-center">
             <div>
               <div className="text-tiny text-oc-text-muted font-medium">Est. Monthly Cost</div>
-              <div className="text-[18px] font-bold tracking-[-0.02em] mt-0.5">$247.80</div>
+              <div className="text-[18px] font-bold tracking-[-0.02em] mt-0.5">${((kpis?.costToday || 0) * 30).toFixed(2)}</div>
             </div>
             <div className="text-right">
               <div className="text-tiny text-oc-text-muted font-medium">Billing Period</div>
