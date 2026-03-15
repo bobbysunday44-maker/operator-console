@@ -60,7 +60,12 @@ export function PipelineSidebar({
           ))}
           <div className="border-t border-oc-border mt-1.5 pt-1.5 flex justify-between text-small">
             <span className="font-bold text-oc-text">Total</span>
-            <span className="font-mono font-bold text-oc-blue">~$0.055</span>
+            <span className="font-mono font-bold text-oc-blue">
+              ~${costs.reduce((sum, c) => {
+                const n = parseFloat(c.cost.replace(/[^0-9.]/g, ""));
+                return sum + (isNaN(n) ? 0 : n);
+              }, 0).toFixed(3)}
+            </span>
           </div>
         </div>
       </div>

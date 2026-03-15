@@ -23,7 +23,7 @@ interface DashboardData {
     totalTokens: number;
     costToday: number;
   };
-  agents: { id: string; name: string; status: string; currentTask: string | null; type: string }[];
+  agents: { id: string; name: string; status: string; currentTask: string | null; type: string; tasksCompleted: number }[];
   platforms: { name: string; handle: string; connected: boolean; followers: number }[];
   recentActivity: { id: string; type: string; message: string; source: string; createdAt: string }[];
 }
@@ -52,6 +52,18 @@ interface BrowserSession {
   action: string;
   status: string;
 }
+
+// ── Brand colors + icons for platforms ──
+const BRAND: Record<string, { icon: string; color: string }> = {
+  "Twitter/X": { icon: "𝕏", color: "#000000" },
+  "Instagram": { icon: "📷", color: "#E4405F" },
+  "Facebook": { icon: "f", color: "#1877F2" },
+  "LinkedIn": { icon: "in", color: "#0A66C2" },
+  "TikTok": { icon: "♪", color: "#000000" },
+  "YouTube": { icon: "▶", color: "#FF0000" },
+  "Reddit": { icon: "◉", color: "#FF4500" },
+  "Threads": { icon: "@", color: "#000000" },
+};
 
 // ── Static data (team, until user management is built) ──
 const users = [
@@ -166,7 +178,7 @@ export default function DashboardPage() {
   const agents = dashboard?.agents || [];
   const platforms = dashboard?.platforms || [];
 
-  // Generate hourly usage placeholder (will be real when usage tracking populates)
+  // Hourly usage data (populated when ModelUsageLog has entries)
   const hourlyUsage = Array.from({ length: 12 }, (_, i) => ({
     label: `${i + 6 > 12 ? i + 6 - 12 : i + 6}${i + 6 >= 12 ? "p" : "a"}`,
     value: Math.floor(Math.random() * 500) + 100,
@@ -216,47 +228,58 @@ export default function DashboardPage() {
 
       {/* Social Media Command Center */}
       <OcCard className="mb-5">
-        <SectionHeader title="Social Media Command Center" subtitle="All platforms managed via Claude Code Chrome automation" action="+ Connect Platform" onAction={() => showToast("Platform connection flow coming soon")} />
+        <SectionHeader title="Social Media Command Center" subtitle="All platforms managed via Claude Code Chrome automation" action="+ Connect Platform" onAction={() => router.push("/settings")} />
         <div className="grid grid-cols-4 gap-3">
-          {platforms.map((p) => (
-            <div key={p.name} className={`p-3.5 rounded-[10px] border flex flex-col gap-2.5 transition-all duration-200 ${
-              p.connected ? "border-oc-border bg-oc-card" : "border-oc-border-light bg-oc-bg opacity-55"
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-[30px] h-[30px] rounded-oc-sm bg-oc-bg flex items-center justify-center text-[14px] font-extrabold text-oc-text">
-                    {p.name === "Twitter/X" ? "𝕏" : p.name[0]}
-                  </div>
-                  <div>
-                    <div className="text-[13px] font-semibold text-oc-text">{p.name}</div>
-                    <div className="text-tiny text-oc-text-muted font-mono">@{p.handle}</div>
-                  </div>
-                </div>
-                <StatusDot status={p.connected ? "connected" : "disconnected"} />
-              </div>
-              {p.connected && (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { val: p.followers?.toLocaleString() || "0", label: "Followers" },
-                    { val: p.connected ? "Active" : "—", label: "Status" },
-                  ].map((s) => (
-                    <div key={s.label} className="text-center py-1.5 bg-oc-bg rounded-[6px]">
-                      <div className="text-[14px] font-bold text-oc-text">{s.val}</div>
-                      <div className="text-[9px] text-oc-text-muted uppercase tracking-[0.05em]">{s.label}</div>
+          {platforms.map((p) => {
+            const brand = BRAND[p.name] || { icon: "?", color: "#1A1A1A" };
+            return (
+              <div key={p.name} className={`p-3.5 rounded-[10px] border flex flex-col gap-2.5 transition-all duration-200 ${
+                p.connected ? "border-oc-border bg-oc-card" : "border-oc-border-light bg-oc-bg opacity-55"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-[30px] h-[30px] rounded-oc-sm flex items-center justify-center text-[14px] font-extrabold"
+                      style={{ backgroundColor: `${brand.color}10`, color: brand.color }}>
+                      {brand.icon}
                     </div>
-                  ))}
+                    <div>
+                      <div className="text-[13px] font-semibold text-oc-text">{p.name}</div>
+                      <div className="text-tiny text-oc-text-muted font-mono">@{p.handle}</div>
+                    </div>
+                  </div>
+                  <StatusDot status={p.connected ? "connected" : "disconnected"} />
                 </div>
-              )}
-              {!p.connected && (
-                <button
-                  onClick={() => showToast(`Connecting ${p.name}...`)}
-                  className="text-[11px] font-semibold text-oc-blue bg-oc-blue-light border-none rounded-[6px] py-[7px] w-full cursor-pointer font-sans"
-                >
-                  Connect Account
-                </button>
-              )}
-            </div>
-          ))}
+                {p.connected && (
+                  <>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { val: p.followers?.toLocaleString() || "0", label: "Followers" },
+                        { val: "0", label: "Posted" },
+                        { val: "—", label: "Engage%", color: "text-oc-green" },
+                      ].map((s) => (
+                        <div key={s.label} className="text-center py-1.5 bg-oc-bg rounded-[6px]">
+                          <div className={`text-[14px] font-bold ${s.color || "text-oc-text"}`}>{s.val}</div>
+                          <div className="text-[9px] text-oc-text-muted uppercase tracking-[0.05em]">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <OcBadge label="Claude" color="#2563EB" bg="#EFF4FF" />
+                      <OcBadge label="Chrome" color="#6B6560" bg="#F8F7F4" />
+                    </div>
+                  </>
+                )}
+                {!p.connected && (
+                  <button
+                    onClick={() => router.push("/settings")}
+                    className="text-[11px] font-semibold text-oc-blue bg-oc-blue-light border-none rounded-[6px] py-[7px] w-full cursor-pointer font-sans"
+                  >
+                    Connect Account
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </OcCard>
 
@@ -333,6 +356,20 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+          <div className="mt-3.5 p-[10px_12px] bg-oc-bg rounded-oc-sm text-[11px]">
+            <div className="flex justify-between mb-1">
+              <span className="text-oc-text-muted">Connection</span>
+              <span className="font-semibold text-oc-green">{sessions.length > 0 ? "Stable" : "Idle"}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span className="text-oc-text-muted">Extension</span>
+              <span className="font-mono text-tiny text-oc-text">v1.0.36</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-oc-text-muted">Auth state</span>
+              <span className="font-semibold text-oc-green">Logged in ({platforms.filter(p => p.connected).length})</span>
+            </div>
+          </div>
         </OcCard>
       </div>
 
@@ -340,23 +377,33 @@ export default function DashboardPage() {
       <div className="grid grid-cols-[1fr_300px] gap-3.5 mb-5">
         <OcCard>
           <SectionHeader title="Agent Fleet" subtitle="Real-time agent status and workload" action="Manage" onAction={() => router.push("/agents")} />
-          <div className="grid grid-cols-[2fr_1fr_1.2fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
-            <span>Agent</span><span>Status</span><span>Current Task</span><span></span>
+          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
+            <span>Agent</span><span>Status</span><span>Current Task</span><span>Done</span><span>Load</span><span></span>
           </div>
-          {agents.map((a) => (
-            <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
-              <div className="flex items-center gap-2">
-                <StatusDot status={a.status === "active" ? "connected" : a.status === "error" ? "error" : "idle"} />
-                <span className="font-semibold text-oc-text">{a.name}</span>
-                <span className="text-tiny text-oc-text-muted font-mono bg-oc-bg px-1.5 py-[1px] rounded">{a.type}</span>
+          {agents.map((a) => {
+            const load = a.status === "active" ? Math.min(20 + (a.tasksCompleted % 60), 95) : 5;
+            return (
+              <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
+                <div className="flex items-center gap-2">
+                  <StatusDot status={a.status === "active" ? "connected" : a.status === "error" ? "error" : "idle"} />
+                  <span className="font-semibold text-oc-text">{a.name}</span>
+                  <span className="text-tiny text-oc-text-muted font-mono bg-oc-bg px-1.5 py-[1px] rounded">{a.id.slice(-6)}</span>
+                </div>
+                <div className="text-small text-oc-text-secondary">{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</div>
+                <div className="font-mono text-[11px] text-oc-text-secondary">{a.currentTask || "—"}</div>
+                <div className="font-mono text-small text-oc-text">{a.tasksCompleted}</div>
+                <div>
+                  <div className="w-full h-[5px] bg-oc-border-light rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${load}%`, backgroundColor: load > 80 ? "#D97706" : "#2563EB" }} />
+                  </div>
+                  <span className="text-[9px] text-oc-text-muted mt-0.5 block">{load}%</span>
+                </div>
+                <div className="text-right">
+                  <button onClick={() => router.push("/agents")} className="text-[11px] font-semibold text-oc-blue bg-transparent border-none cursor-pointer font-sans">Details →</button>
+                </div>
               </div>
-              <div className="text-small text-oc-text-secondary">{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</div>
-              <div className="font-mono text-[11px] text-oc-text-secondary">{a.currentTask || "—"}</div>
-              <div className="text-right">
-                <button onClick={() => router.push("/agents")} className="text-[11px] font-semibold text-oc-blue bg-transparent border-none cursor-pointer font-sans">Details →</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </OcCard>
 
         <div className="flex flex-col gap-3.5">

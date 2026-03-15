@@ -17,7 +17,7 @@ export async function GET() {
     platforms,
     recentActivity,
   ] = await Promise.all([
-    prisma.agent.findMany(),
+    prisma.agent.findMany({ include: { _count: { select: { tasks: true } } } }),
     prisma.contentItem.count({ where: { createdAt: { gte: today } } }),
     prisma.pipelineRun.count({ where: { createdAt: { gte: today } } }),
     prisma.socialPost.count({ where: { status: "posted", publishedAt: { gte: today } } }),
@@ -50,6 +50,7 @@ export async function GET() {
       status: a.status,
       currentTask: a.currentTask,
       type: a.type,
+      tasksCompleted: a._count.tasks,
     })),
     platforms: platforms.map((p) => ({
       name: p.name,
