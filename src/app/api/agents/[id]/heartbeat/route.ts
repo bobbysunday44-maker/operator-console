@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
-import { recordHeartbeat } from "@/lib/agents/agent-data";
+import { prisma } from "@/lib/db/prisma";
 
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const agent = recordHeartbeat(params.id);
-  if (!agent) {
+  const { id } = await params;
+
+  try {
+    const agent = await prisma.agent.update({
+      where: { id },
+      data: {
+        lastHeartbeat: new Date(),
+        status: "active",
+      },
+    });
+    return NextResponse.json({ ok: true, lastHeartbeat: agent.lastHeartbeat });
+  } catch {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, lastHeartbeat: agent.lastHeartbeat });
 }
