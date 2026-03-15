@@ -62,19 +62,19 @@ export async function POST(
       stage: stage as PipelineStage,
       model: model as ModelProvider,
       status: (status as TaskStatus) || "pending",
-      inputPrompt: inputPrompt || null,
-      outputPath: outputPath || null,
-      outputPreview: outputPreview || null,
-      tokensIn: tokensIn || null,
-      tokensOut: tokensOut || null,
-      cost: cost || null,
-      duration: duration || null,
-      error: error || null,
+      inputPrompt: inputPrompt ?? null,
+      outputPath: outputPath ?? null,
+      outputPreview: outputPreview ?? null,
+      tokensIn: tokensIn ?? null,
+      tokensOut: tokensOut ?? null,
+      cost: cost ?? null,
+      duration: duration ?? null,
+      error: error ?? null,
       completedAt: status === "completed" ? new Date() : null,
     },
   });
 
-  // Update content status based on stage
+  // Update content status + cost in a single query
   const stageStatusMap: Record<string, string> = {
     prompt: "scripting",
     image: "imaging",
@@ -84,19 +84,12 @@ export async function POST(
     lip_sync: "filming",
   };
   const newStatus = stageStatusMap[stage];
-  if (newStatus) {
-    await prisma.contentItem.update({
-      where: { id },
-      data: { status: newStatus as ContentStatus },
-    });
-  }
+  const updateData: Record<string, unknown> = {};
+  if (newStatus) updateData.status = newStatus as ContentStatus;
+  if (cost) updateData.totalCost = { increment: cost };
 
-  // Update total cost
-  if (cost) {
-    await prisma.contentItem.update({
-      where: { id },
-      data: { totalCost: { increment: cost } },
-    });
+  if (Object.keys(updateData).length > 0) {
+    await prisma.contentItem.update({ where: { id }, data: updateData });
   }
 
   return NextResponse.json({ run }, { status: 201 });
