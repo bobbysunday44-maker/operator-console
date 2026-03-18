@@ -71,6 +71,13 @@ const apiKeyFields: ApiKeyField[] = [
     placeholder: "123456:ABC-DEF...",
     description: "Telegram bot for alerts, approvals, and remote control",
   },
+  {
+    key: "SOCIAL_API_KEY",
+    label: "Social Posting API",
+    icon: <Send className="w-4 h-4" />,
+    placeholder: "your-api-key",
+    description: "Post for Me, Upload-Post, or Ayrshare API key for direct social media posting",
+  },
 ];
 
 /* ── General Settings ── */
@@ -105,6 +112,18 @@ const generalSettingsInit: SettingField[] = [
       { label: "Claude Sonnet 4.6", value: "claude-sonnet-4-6" },
     ],
     description: "Primary model for all language tasks (v3.1: Claude only)",
+  },
+  {
+    key: "SOCIAL_API_PROVIDER",
+    label: "Social Posting Provider",
+    type: "select",
+    value: "postforme",
+    options: [
+      { label: "Post for Me (postforme.dev)", value: "postforme" },
+      { label: "Upload-Post (upload-post.com)", value: "uploadpost" },
+      { label: "Ayrshare (ayrshare.com)", value: "ayrshare" },
+    ],
+    description: "Which third-party API service to use for posting to social media",
   },
 ];
 
@@ -218,6 +237,7 @@ export default function SettingsPage() {
     GEMINI_API_KEY: "",
     KLING_API_KEY: "",
     TELEGRAM_BOT_TOKEN: "",
+    SOCIAL_API_KEY: "",
   });
 
   const [generalSettings, setGeneralSettings] =
@@ -540,7 +560,7 @@ export default function SettingsPage() {
               <h3 className="text-section-title text-oc-text">Platform Connections</h3>
             </div>
             <p className="text-tiny text-oc-text-muted mb-3">
-              Connect social media accounts for Chrome automation posting.
+              Connect social media accounts for API-powered direct posting.
             </p>
             <div className="space-y-1">
               {platforms.map((p) => (

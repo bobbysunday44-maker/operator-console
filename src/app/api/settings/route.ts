@@ -15,6 +15,7 @@ const API_KEY_FIELDS = new Set([
   "GEMINI_API_KEY",
   "KLING_API_KEY",
   "TELEGRAM_BOT_TOKEN",
+  "SOCIAL_API_KEY",
 ]);
 
 // All allowed setting keys — prevents arbitrary env injection
@@ -31,6 +32,8 @@ const ALLOWED_KEYS = new Set([
   "NOTIFY_SCHEDULE_ERRORS",
   "NOTIFY_BUDGET_WARNING",
   "TRACKED_NICHES",
+  "SOCIAL_API_KEY",
+  "SOCIAL_API_PROVIDER",
 ]);
 
 export async function GET() {
