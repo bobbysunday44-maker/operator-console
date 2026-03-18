@@ -36,14 +36,15 @@ export interface Invoice {
   commissionRate: number;
 }
 
-// ── Invoice Number Generation ──
+// ── Invoice Number Generation (persisted via DB) ──
 
-let invoiceCounter = 0;
-
-function generateInvoiceNumber(): string {
-  invoiceCounter++;
+async function generateInvoiceNumber(): Promise<string> {
+  // Count existing invoices in activity log to get next number
+  const count = await prisma.activityLog.count({
+    where: { message: { startsWith: "Invoice generated: OC-" } },
+  });
   const year = new Date().getFullYear();
-  const num = String(invoiceCounter).padStart(3, "0");
+  const num = String(count + 1).padStart(3, "0");
   return `OC-${year}-${num}`;
 }
 
@@ -180,7 +181,7 @@ export async function generateInvoice(
 
     // 7. Build invoice
     const invoice: Invoice = {
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: await generateInvoiceNumber(),
       campaignId: campaign.id,
       businessName: campaign.businessName,
       businessEmail: campaign.businessEmail,

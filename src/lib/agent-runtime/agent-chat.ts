@@ -18,6 +18,12 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const LOOP_GUARD_MAX = 5; // max agent-to-agent hops per channel before pausing
 
+// Channels where loop guard is temporarily disabled (e.g., during meetings)
+const loopGuardBypass: Set<string> = new Set();
+
+export function disableLoopGuard(channelName: string) { loopGuardBypass.add(channelName); }
+export function enableLoopGuard(channelName: string) { loopGuardBypass.delete(channelName); channelLoopCounts[channelName] = 0; }
+
 // Track loop count per channel (resets when Bobby sends or types /continue)
 const channelLoopCounts: Record<string, number> = {};
 
@@ -178,7 +184,10 @@ async function triggerMentionedAgents(
     // Don't trigger self
     if (agentId === triggeredBy) continue;
 
-    // Check loop guard
+    // Check loop guard (bypassed during meetings)
+    if (loopGuardBypass.has(channelName)) {
+      // Meeting in progress — skip loop guard
+    } else {
     const loopCount = channelLoopCounts[channelName] || 0;
     if (loopCount >= LOOP_GUARD_MAX) {
       console.log(
@@ -197,6 +206,7 @@ async function triggerMentionedAgents(
     }
 
     channelLoopCounts[channelName] = loopCount + 1;
+    } // close the else block from loop guard bypass
 
     try {
       await triggerAgent(agentId, channelName, triggerContent);

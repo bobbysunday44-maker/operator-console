@@ -9,7 +9,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSetting } from "@/lib/db/settings";
-import { sendMessage, triggerAgent } from "@/lib/agent-runtime/agent-chat";
+import { sendMessage, triggerAgent, disableLoopGuard, enableLoopGuard } from "@/lib/agent-runtime/agent-chat";
 import { eventBus } from "@/lib/events/event-bus";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -189,19 +189,23 @@ export async function startMeeting(meetingId: string): Promise<void> {
  * Conduct a meeting — each attendee speaks in turn.
  */
 export async function conductMeeting(meetingId: string): Promise<void> {
+  let meetingChannelName = "general";
   try {
     const meeting = await prisma.meeting.findUnique({
       where: { id: meetingId },
     });
     if (!meeting) return;
 
-    let channelName = "general";
     if (meeting.channelId) {
       const channel = await prisma.chatChannel.findUnique({
         where: { id: meeting.channelId },
       });
-      if (channel) channelName = channel.name;
+      if (channel) meetingChannelName = channel.name;
     }
+    const channelName = meetingChannelName;
+
+    // Disable loop guard so all 9 agents can speak during meetings
+    disableLoopGuard(channelName);
 
     const prompt = MEETING_PROMPTS[meeting.type] || MEETING_PROMPTS.adhoc;
 
@@ -243,6 +247,9 @@ export async function endMeeting(meetingId: string): Promise<void> {
       });
       if (channel) channelName = channel.name;
     }
+
+    // Re-enable loop guard now that meeting is over
+    enableLoopGuard(channelName);
 
     // Get all messages from this meeting (since it started)
     const channel = await prisma.chatChannel.findUnique({

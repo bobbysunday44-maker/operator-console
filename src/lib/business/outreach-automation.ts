@@ -4,6 +4,12 @@
  * - Run full outreach cycles (find → pitch → queue → follow-up)
  * - Process follow-ups automatically
  *
+ * NOTE: Emails are NOT sent automatically. This system generates and stores
+ * email content in the DB. To actually send emails, integrate an SMTP service
+ * (SendGrid, Mailgun, Postmark) and call it from queueOutreach/processFollowUps.
+ * The outreach records track status (queued → sent → opened → replied) for when
+ * email sending is wired up.
+ *
  * Usage:
  *   import { findProspects, runOutreachCycle, processFollowUps } from "@/lib/business/outreach-automation";
  */

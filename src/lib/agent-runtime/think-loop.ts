@@ -386,6 +386,23 @@ async function act(agentId: string, result: ThinkResult, agentName: string): Pro
         newActivity = "working";
         newMood = "focused";
         energyDelta = -0.05;
+        // Actually claim a pending task from the queue
+        try {
+          const pendingTask = await prisma.task.findFirst({
+            where: { status: "pending", assigneeId: null },
+            orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+          });
+          if (pendingTask) {
+            await prisma.task.update({
+              where: { id: pendingTask.id },
+              data: { status: "in_progress", assigneeId: agentId },
+            });
+            await prisma.agent.update({
+              where: { id: agentId },
+              data: { currentTask: pendingTask.title.slice(0, 100) },
+            });
+          }
+        } catch { /* task claim is best-effort */ }
         break;
 
       case "talk":
@@ -584,7 +601,9 @@ async function runThinkLoop(): Promise<void> {
 export function startThinkLoopWorker(): void {
   if (thinkInterval) return;
   console.log("[ThinkLoop] Started — perceive/think/act cycle every 15s");
-  thinkInterval = setInterval(runThinkLoop, 15_000);
+  // 60 seconds between cycles — balances responsiveness vs API cost
+  // At 9 agents: ~9 Claude calls/minute = 540/hour ≈ $5/day
+  thinkInterval = setInterval(runThinkLoop, 60_000);
 }
 
 /**
