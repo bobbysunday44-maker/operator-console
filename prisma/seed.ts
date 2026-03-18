@@ -14,7 +14,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("Seeding OpenClaw database...");
 
-  // ── 1. Seed Agents (8 agents — all start OFFLINE, no fake tasks) ──
+  // ── 1. Seed Agents (9 agents — all start OFFLINE, no fake tasks) ──
   const agents = [
     {
       id: "agent-ideator",
@@ -87,6 +87,15 @@ async function main() {
       personality: "Continuous monitoring agent for social media trends, competitor activity, and viral content detection.",
       currentTask: null as string | null,
       config: { capabilities: ["trend-monitoring", "competitor-analysis", "viral-detection", "hashtag-tracking"] },
+    },
+    {
+      id: "agent-outreach",
+      name: "Outreach Bot",
+      type: "outreach",
+      status: "offline" as const,
+      personality: "B2B sales agent that identifies businesses, crafts personalized cold outreach, and manages the sales pipeline for AI influencer advertising deals.",
+      currentTask: null as string | null,
+      config: { capabilities: ["cold-outreach", "pitch-generation", "follow-up", "lead-qualification"] },
     },
   ];
 

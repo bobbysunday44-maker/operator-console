@@ -20,6 +20,7 @@ const AGENT_CAPABILITIES: Record<string, string[]> = {
   engage: ["reply_draft", "engagement"],
   editor: ["quality_review", "approval"],
   ideator: ["research", "trending", "ideation"],
+  outreach: ["cold_outreach", "pitch_generation", "follow_up", "lead_qualification"],
 };
 
 async function dispatchTasks() {

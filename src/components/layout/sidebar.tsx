@@ -23,6 +23,9 @@ import {
   Zap,
   Layers,
   Workflow,
+  Megaphone,
+  UserCircle,
+  Radar,
 } from "lucide-react";
 
 const navItems = [
@@ -36,7 +39,10 @@ const navItems = [
   { key: "/agents", label: "Agent Fleet", icon: Bot },
   { key: "/ab-testing", label: "A/B Testing", icon: FlaskConical },
   { key: "/brand", label: "Brand & Memory", icon: Brain },
+  { key: "/campaigns", label: "Campaigns", icon: Megaphone },
   { key: "/monetization", label: "Monetization", icon: DollarSign },
+  { key: "/media-kit", label: "Media Kit", icon: UserCircle },
+  { key: "/competitor-analysis", label: "Competitor Analysis", icon: Radar },
   { key: "/autonomous", label: "Autonomous Mode", icon: Zap },
   { key: "/batch", label: "Mass Operations", icon: Layers },
   { key: "/tasks", label: "Tasks", icon: ListTodo },

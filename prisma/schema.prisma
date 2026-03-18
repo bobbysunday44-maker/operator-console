@@ -978,3 +978,107 @@ model WorkflowRun {
   @@index([workflowId, startedAt])
   @@map("workflow_runs")
 }
+
+// ══════════════════════════════════════════════════════════
+// CAMPAIGN MANAGEMENT — Business deals, revenue tracking
+// ══════════════════════════════════════════════════════════
+
+model Campaign {
+  id            String   @id @default(cuid())
+  businessName  String
+  businessEmail String?
+  businessUrl   String?
+  characterId   String?  // which AI model is advertising for this business
+  niche         String
+  status        String   @default("active") // active, paused, completed, pitched
+  commission    Float    @default(0) // commission rate (e.g. 0.15 = 15%)
+  totalRevenue  Float    @default(0)
+  totalClicks   Int      @default(0)
+  totalConversions Int   @default(0)
+  contentCount  Int      @default(0)
+  notes         String?  @db.Text
+  startedAt     DateTime @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  outreaches    Outreach[]
+
+  @@index([status])
+  @@index([niche])
+  @@map("campaigns")
+}
+
+// ══════════════════════════════════════════════════════════
+// OUTREACH — Cold emails, follow-ups, pitch generation
+// ══════════════════════════════════════════════════════════
+
+model Outreach {
+  id            String   @id @default(cuid())
+  campaignId    String?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  businessName  String
+  businessEmail String
+  businessUrl   String?
+  contactName   String?
+  status        String   @default("queued") // queued, sent, opened, replied, accepted, rejected
+  channel       String   @default("email") // email, dm, linkedin
+  subject       String?
+  messageBody   String?  @db.Text
+  sentAt        DateTime?
+  openedAt      DateTime?
+  repliedAt     DateTime?
+  response      String?  @db.Text
+  followUpCount Int      @default(0)
+  nextFollowUp  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([campaignId])
+  @@map("outreaches")
+}
+
+// ══════════════════════════════════════════════════════════
+// COMPETITOR ANALYSIS — Track competitors, scan performance
+// ══════════════════════════════════════════════════════════
+
+model Competitor {
+  id              String   @id @default(cuid())
+  name            String
+  platform        String   // TikTok, Instagram, YouTube, etc.
+  handle          String
+  niche           String
+  followers       Int      @default(0)
+  followingCount  Int      @default(0)
+  postFrequency   Float?   // posts per day
+  avgEngagement   Float?   // average engagement rate
+  topHashtags     String[]
+  contentFormats  Json?    // { video: 60%, carousel: 25%, image: 15% }
+  bestPostingTime Json?    // { hour: 18, dayOfWeek: 2 }
+  lastScanned     DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scans           CompetitorScan[]
+
+  @@unique([platform, handle])
+  @@index([niche])
+  @@map("competitors")
+}
+
+model CompetitorScan {
+  id            String   @id @default(cuid())
+  competitorId  String
+  competitor    Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  followers     Int
+  engagement    Float?
+  postsFound    Int      @default(0)
+  topContent    Json?    // top 5 posts with engagement data
+  insights      String?  @db.Text // AI-generated analysis
+  scannedAt     DateTime @default(now())
+
+  @@index([competitorId, scannedAt])
+  @@map("competitor_scans")
+}
