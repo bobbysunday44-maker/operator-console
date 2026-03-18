@@ -136,6 +136,7 @@ model ContentItem {
   assets              ContentAsset[]
   pipelineRuns        PipelineRun[]
   socialPosts         SocialPost[]
+  repurposedFrom      RepurposedContent[] @relation("repurposed_from")
   abTests             ABTest[]
   calendarEntries     ContentCalendar[]
   autonomousDecisions AutonomousDecision[]
@@ -1081,4 +1082,28 @@ model CompetitorScan {
 
   @@index([competitorId, scannedAt])
   @@map("competitor_scans")
+}
+
+// ══════════════════════════════════════════════════════════
+// CONTENT REPURPOSING — One piece → many platform versions
+// ══════════════════════════════════════════════════════════
+
+model RepurposedContent {
+  id              String   @id @default(cuid())
+  sourceContentId String
+  sourceContent   ContentItem @relation("repurposed_from", fields: [sourceContentId], references: [id], onDelete: Cascade)
+  title           String
+  format          String   // short_clip, carousel, quote_card, audiogram, blog_excerpt, thread, story
+  platform        String   // TikTok, Instagram, YouTube, LinkedIn, Twitter/X
+  aspectRatio     String   @default("9:16") // 9:16, 1:1, 16:9, 4:5
+  script          String?  @db.Text
+  caption         String?  @db.Text
+  hashtags        String[]
+  status          String   @default("draft") // draft, ready, posted
+  outputPath      String?
+  createdAt       DateTime @default(now())
+
+  @@index([sourceContentId])
+  @@index([platform])
+  @@map("repurposed_content")
 }

@@ -26,6 +26,7 @@ import {
   Megaphone,
   UserCircle,
   Radar,
+  Repeat,
 } from "lucide-react";
 
 const navItems = [
@@ -35,6 +36,7 @@ const navItems = [
   { key: "/visual-editor", label: "Visual Editor", icon: Workflow },
   { key: "/social", label: "Social Media", icon: Share2 },
   { key: "/strategy", label: "Content Strategy", icon: Target },
+  { key: "/repurpose", label: "Repurpose", icon: Repeat },
   { key: "/chat", label: "Chat & Commands", icon: MessageSquare },
   { key: "/agents", label: "Agent Fleet", icon: Bot },
   { key: "/ab-testing", label: "A/B Testing", icon: FlaskConical },
