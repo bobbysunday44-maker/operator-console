@@ -27,6 +27,7 @@ export interface PitchStats {
   followerCount: string;
   engagementRate: string;
   contentPieces: string;
+  contactName?: string; // actual person's name if found
 }
 
 // ── Day 0: Initial Cold Pitch ──
@@ -38,7 +39,7 @@ export function initialPitch(
 ): EmailTemplate {
   return {
     subject: `${businessName} + ${characterName} — content partnership (commission-only)`,
-    body: `Hi {{business_name}} team,
+    body: `Hi {{greeting}},
 
 I'm reaching out because I think there's a strong fit between what you're building and what our AI creator {{character_name}} does best.
 
@@ -60,6 +61,7 @@ Would you be open to a quick 15-minute call this week to see if there's a fit?
 Best,
 OpenClaw Outreach
 https://openclaw.ai`
+      .replace(/\{\{greeting\}\}/g, stats.contactName || `${businessName} team`)
       .replace(/\{\{business_name\}\}/g, businessName)
       .replace(/\{\{character_name\}\}/g, characterName)
       .replace(/\{\{niche\}\}/g, niche)
@@ -73,10 +75,11 @@ https://openclaw.ai`
 export function followUp1(
   businessName: string,
   characterName: string,
+  contactName?: string,
 ): EmailTemplate {
   return {
     subject: `Re: ${businessName} + ${characterName} — quick follow-up`,
-    body: `Hi {{business_name}} team,
+    body: `Hi {{greeting}},
 
 Just bumping this to the top of your inbox — I know things get busy.
 
@@ -88,6 +91,7 @@ Worth a 15-minute call?
 
 Best,
 OpenClaw Outreach`
+      .replace(/\{\{greeting\}\}/g, contactName || `${businessName} team`)
       .replace(/\{\{business_name\}\}/g, businessName)
       .replace(/\{\{character_name\}\}/g, characterName),
   };
@@ -97,10 +101,11 @@ OpenClaw Outreach`
 export function followUp2(
   businessName: string,
   characterName: string,
+  contactName?: string,
 ): EmailTemplate {
   return {
     subject: `${characterName} sample content for ${businessName}`,
-    body: `Hi {{business_name}} team,
+    body: `Hi {{greeting}},
 
 Instead of another follow-up email, I wanted to show rather than tell.
 
@@ -119,16 +124,17 @@ If this resonates, I'd love to hop on a quick call to discuss specifics — comm
 
 Best,
 OpenClaw Outreach`
+      .replace(/\{\{greeting\}\}/g, contactName || `${businessName} team`)
       .replace(/\{\{business_name\}\}/g, businessName)
       .replace(/\{\{character_name\}\}/g, characterName),
   };
 }
 
 // ── Day 14: Break-Up Email ──
-export function followUp3(businessName: string): EmailTemplate {
+export function followUp3(businessName: string, contactName?: string): EmailTemplate {
   return {
     subject: `Closing the loop — ${businessName}`,
-    body: `Hi {{business_name}} team,
+    body: `Hi {{greeting}},
 
 I've reached out a few times and haven't heard back, so I'll assume the timing isn't right. Totally understand — not every opportunity aligns.
 
@@ -138,6 +144,7 @@ No hard feelings, and I wish you all the best.
 
 Cheers,
 OpenClaw Outreach`
+      .replace(/\{\{greeting\}\}/g, contactName || `${businessName} team`)
       .replace(/\{\{business_name\}\}/g, businessName),
   };
 }
@@ -146,10 +153,11 @@ OpenClaw Outreach`
 export function acceptedResponse(
   businessName: string,
   characterName: string,
+  contactName?: string,
 ): EmailTemplate {
   return {
     subject: `Welcome aboard, ${businessName} — let's get started`,
-    body: `Hi {{business_name}} team,
+    body: `Hi {{greeting}},
 
 Thrilled to have you on board. Let's make this partnership drive real results.
 
@@ -182,6 +190,7 @@ Looking forward to creating something great together.
 
 Best,
 OpenClaw Outreach`
+      .replace(/\{\{greeting\}\}/g, contactName || `${businessName} team`)
       .replace(/\{\{business_name\}\}/g, businessName)
       .replace(/\{\{character_name\}\}/g, characterName),
   };
