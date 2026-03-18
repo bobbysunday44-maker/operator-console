@@ -494,7 +494,11 @@ async function processVoiceover(job: Job<PipelineJobData>) {
       const voice = (await getSetting("DEFAULT_TTS_VOICE")) || "en-US-GuyNeural";
       const mp3Path = outputPath.replace(".wav", ".mp3");
 
-      await execFileAsync("edge-tts", [
+      // Use edge-tts from project venv — not system Python
+      const venvEdgeTts = join(process.cwd(), "voice", ".venv", "Scripts", "edge-tts.exe");
+      const edgeTtsCmd = (await import("fs")).existsSync(venvEdgeTts) ? venvEdgeTts : "edge-tts";
+
+      await execFileAsync(edgeTtsCmd, [
         "--voice", voice,
         "--text", voiceoverScript,
         "--write-media", mp3Path,
