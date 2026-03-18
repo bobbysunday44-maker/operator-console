@@ -164,7 +164,7 @@ export function AgentPopup({ agent, memories, onClose }: AgentPopupProps) {
 
           {/* Action button */}
           <Link
-            href="/chat"
+            href={`/chat?dm=${agent.id}`}
             className="flex items-center justify-center gap-1.5 w-full py-2 rounded-oc-sm text-[12px] font-semibold transition-colors"
             style={{
               backgroundColor: agentColor + "12",

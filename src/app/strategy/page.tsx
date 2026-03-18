@@ -94,7 +94,16 @@ export default function StrategyPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-section-title text-oc-text">Content Series</h2>
-          <button className="flex items-center gap-1 text-tiny text-oc-blue font-semibold"><Plus className="w-3 h-3" />New Series</button>
+          <button onClick={async () => {
+            const name = prompt("Series name:");
+            if (!name) return;
+            await fetch("/api/strategy/series", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ niche, name, description: `${name} series for ${niche} niche` }),
+            });
+            fetchData();
+          }} className="flex items-center gap-1 text-tiny text-oc-blue font-semibold"><Plus className="w-3 h-3" />New Series</button>
         </div>
         {series.length === 0 ? (
           <div className="p-6 bg-oc-card border border-oc-border rounded-oc text-center text-small text-oc-text-muted">No series created yet</div>

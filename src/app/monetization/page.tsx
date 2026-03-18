@@ -82,7 +82,20 @@ export default function MonetizationPage() {
       {tab === "links" && (
         <div>
           <div className="flex justify-end mb-3">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-oc-text text-white rounded-oc text-small font-semibold"><Plus className="w-3.5 h-3.5" />Add Link</button>
+            <button onClick={async () => {
+              const name = prompt("Link name (e.g. 'AI Tool Affiliate'):");
+              if (!name) return;
+              const url = prompt("Affiliate URL:");
+              if (!url) return;
+              const platform = prompt("Platform (TikTok, Instagram, YouTube, etc.):");
+              if (!platform) return;
+              await fetch("/api/monetization/links", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, url, niche: "AI", platform, isActive: true }),
+              });
+              fetchData();
+            }} className="flex items-center gap-1.5 px-3 py-1.5 bg-oc-text text-white rounded-oc text-small font-semibold"><Plus className="w-3.5 h-3.5" />Add Link</button>
           </div>
           {links.length === 0 ? (
             <div className="p-8 bg-oc-card border border-oc-border rounded-oc text-center">

@@ -353,7 +353,7 @@ export default function MediaKitPage() {
               className="flex items-center gap-1.5 px-4 py-2 border border-oc-border text-oc-text rounded-oc text-small font-semibold hover:bg-oc-bg disabled:opacity-50"
             >
               <Download className="w-3.5 h-3.5" />
-              Download PDF
+              Download Media Kit
             </button>
           </div>
 

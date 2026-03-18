@@ -87,9 +87,9 @@ export default function OfficePage() {
       setAgents(mapped);
       setIsLoading(false);
     } catch {
-      // If API is down, show demo agents so the office isn't empty
+      // If API is down, show empty office — no fake agents
       if (isLoading) {
-        setAgents(getDemoAgents());
+        setAgents([]);
         setIsLoading(false);
       }
     }
@@ -245,37 +245,4 @@ function RecentChatOverlay({
   );
 }
 
-// ── Demo agents for when API is unavailable ──
-
-function getDemoAgents(): AgentSpriteData[] {
-  const demoData = [
-    { name: "Opus", type: "opus", activity: "working", mood: "focused", thought: "Reviewing today's content pipeline priorities..." },
-    { name: "Ideator", type: "ideator", activity: "thinking", mood: "excited", thought: "Brainstorming viral concepts for AI fitness niche" },
-    { name: "Writer", type: "writer", activity: "working", mood: "focused", thought: "Drafting script for product review video" },
-    { name: "Designer", type: "designer", activity: "idle", mood: "relaxed", thought: null },
-    { name: "Filmmaker", type: "filmmaker", activity: "working", mood: "neutral", thought: "Rendering 3 video clips in queue" },
-    { name: "Editor", type: "editor", activity: "idle", mood: "neutral", thought: null },
-    { name: "Social Bot", type: "social", activity: "talking", mood: "excited", thought: "Scheduling posts for 3 platforms" },
-    { name: "Engage Bot", type: "engage", activity: "idle", mood: "relaxed", thought: null },
-    { name: "Scanner", type: "scanner", activity: "working", mood: "focused", thought: "Scanning trending topics across 5 niches" },
-  ];
-
-  return demoData.map((d, i) => {
-    const pos = getStablePosition(`demo-${i}`, d.type, "desk");
-    return {
-      id: `demo-${i}`,
-      name: d.name,
-      type: d.type,
-      status: d.activity === "idle" ? "idle" : "active",
-      position: "desk",
-      activity: d.activity,
-      mood: d.mood,
-      energy: 0.6 + Math.random() * 0.4,
-      currentThought: d.thought,
-      talkingTo: null,
-      lastAction: null,
-      x: pos.x,
-      y: pos.y,
-    };
-  });
-}
+// No demo/fake agents — office shows real state only
