@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ContentMeta } from "@/lib/pipeline/types";
 
 interface CostItem {
@@ -18,11 +19,43 @@ export function PipelineSidebar({
   models,
   costs,
   content,
+  onRunPipeline,
 }: {
   models: ModelInfo[];
   costs: CostItem[];
   content: ContentMeta;
+  onRunPipeline?: () => void;
 }) {
+  const [running, setRunning] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function handleRunPipeline() {
+    if (content.id === "—" || running) return;
+    setRunning(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch(`/api/content/${content.id}/pipeline/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includeLipSync: false }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setFeedback(err.error || "Failed to start pipeline");
+      } else {
+        setFeedback("Pipeline started!");
+        onRunPipeline?.();
+      }
+    } catch {
+      setFeedback("Network error");
+    } finally {
+      setRunning(false);
+      setTimeout(() => setFeedback(null), 3000);
+    }
+  }
+
   return (
     <div className="w-studio-right border-l border-oc-border flex flex-col gap-4 shrink-0 overflow-y-auto h-[calc(100vh-44px)]" style={{ padding: "20px 16px" }}>
       <div className="text-small font-bold text-oc-text">Pipeline Info</div>
@@ -78,16 +111,12 @@ export function PipelineSidebar({
         <div className="p-[10px_12px] bg-oc-bg rounded-oc-sm text-tiny">
           <div className="flex justify-between mb-1">
             <span className="text-oc-text-secondary">Content ID</span>
-            <span className="font-mono text-oc-text">{content.id}</span>
-          </div>
-          <div className="flex justify-between mb-1">
-            <span className="text-oc-text-secondary">Files saved</span>
-            <span className="font-mono text-oc-text">3 / 5</span>
+            <span className="font-mono text-oc-text">{content.id.slice(-8)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-oc-text-secondary">Archive path</span>
             <span className="font-mono text-oc-text-muted text-[9px]">
-              /archive/{content.id}/
+              /content-archive/{content.id.slice(-8)}/
             </span>
           </div>
         </div>
@@ -95,11 +124,17 @@ export function PipelineSidebar({
 
       {/* Quick Actions */}
       <div className="mt-auto">
-        <button className="w-full py-2.5 text-small font-semibold text-white bg-oc-text border-none rounded-oc-sm cursor-pointer mb-2">
-          Run Full Pipeline
-        </button>
-        <button className="w-full py-2.5 text-small font-semibold text-oc-text-secondary bg-oc-card border border-oc-border rounded-oc-sm cursor-pointer">
-          Save as Template
+        {feedback && (
+          <div className={`text-tiny font-semibold mb-2 text-center ${feedback.includes("error") || feedback.includes("Failed") ? "text-oc-red" : "text-oc-green"}`}>
+            {feedback}
+          </div>
+        )}
+        <button
+          onClick={handleRunPipeline}
+          disabled={running || content.id === "—"}
+          className="w-full py-2.5 text-small font-semibold text-white bg-oc-text border-none rounded-oc-sm cursor-pointer mb-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {running ? "Starting..." : "Run Full Pipeline"}
         </button>
       </div>
     </div>

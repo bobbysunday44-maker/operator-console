@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { SectionHeader } from "@/components/shared/section-header";
 import { OcCard } from "@/components/shared/oc-card";
 import {
@@ -18,6 +18,9 @@ import {
   Globe,
   Bell,
   Settings2,
+  Lightbulb,
+  X,
+  Plus,
 } from "lucide-react";
 
 /* ── Types ── */
@@ -221,9 +224,86 @@ export default function SettingsPage() {
     useState<SettingField[]>(generalSettingsInit);
   const [notificationSettings, setNotificationSettings] =
     useState<SettingField[]>(notificationSettingsInit);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
+  const [trackedNiches, setTrackedNiches] = useState<string[]>(["AI", "tech", "automation"]);
+  const [newNiche, setNewNiche] = useState("");
+
+  const [platforms, setPlatforms] = useState<{ id: string; name: string; handle: string; connected: boolean }[]>([]);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const [platformHandle, setPlatformHandle] = useState("");
+
+  const fetchPlatforms = useCallback(async () => {
+    try {
+      const res = await fetch("/api/platforms");
+      const data = await res.json();
+      if (data.platforms) setPlatforms(data.platforms);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchPlatforms(); }, [fetchPlatforms]);
+
+  async function handlePlatformConnect(id: string) {
+    if (!platformHandle.trim()) return;
+    await fetch(`/api/platforms/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connected: true, handle: platformHandle }),
+    });
+    setPlatformHandle("");
+    setConnectingPlatform(null);
+    fetchPlatforms();
+  }
+
+  async function handlePlatformDisconnect(id: string) {
+    await fetch(`/api/platforms/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connected: false }),
+    });
+    fetchPlatforms();
+  }
+
+  // Load settings from API on mount
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.settings) {
+          // Load API keys (masked from server)
+          const keys: Record<string, string> = {};
+          for (const field of apiKeyFields) {
+            keys[field.key] = data.settings[field.key] || "";
+          }
+          setApiKeys(keys);
+
+          // Load general settings
+          setGeneralSettings((prev) =>
+            prev.map((s) => ({
+              ...s,
+              value: data.settings[s.key] ?? s.value,
+            }))
+          );
+
+          // Load notification settings
+          setNotificationSettings((prev) =>
+            prev.map((s) => ({
+              ...s,
+              value: data.settings[s.key] === "true" ? true : data.settings[s.key] === "false" ? false : s.value,
+            }))
+          );
+
+          // Load tracked niches
+          if (data.settings.TRACKED_NICHES) {
+            try {
+              setTrackedNiches(JSON.parse(data.settings.TRACKED_NICHES));
+            } catch { /* keep defaults */ }
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load settings:", err));
+  }, []);
 
   const handleApiKeyChange = (key: string, value: string) => {
     setApiKeys((prev) => ({ ...prev, [key]: value }));
@@ -241,13 +321,34 @@ export default function SettingsPage() {
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveStatus("saving");
-    // TODO: POST to /api/settings once API routes are built
-    setTimeout(() => {
+    try {
+      // Merge all settings into one object
+      const allSettings: Record<string, string> = { ...apiKeys };
+      for (const s of generalSettings) {
+        allSettings[s.key] = String(s.value);
+      }
+      for (const s of notificationSettings) {
+        allSettings[s.key] = String(s.value);
+      }
+      allSettings.TRACKED_NICHES = JSON.stringify(trackedNiches);
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: allSettings }),
+      });
+
+      if (!res.ok) throw new Error("Save failed");
+
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
-    }, 800);
+    } catch (err) {
+      console.error("Settings save error:", err);
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }
   };
 
   const configuredCount = Object.values(apiKeys).filter(Boolean).length;
@@ -429,6 +530,123 @@ export default function SettingsPage() {
                   </button>
                 </div>
               ))}
+            </div>
+          </OcCard>
+
+          {/* Platform Connections */}
+          <OcCard>
+            <div className="flex items-center gap-2 mb-1">
+              <Globe className="w-4 h-4 text-oc-green" />
+              <h3 className="text-section-title text-oc-text">Platform Connections</h3>
+            </div>
+            <p className="text-tiny text-oc-text-muted mb-3">
+              Connect social media accounts for Chrome automation posting.
+            </p>
+            <div className="space-y-1">
+              {platforms.map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-2.5 border-b border-oc-border-light last:border-b-0">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${p.connected ? "bg-oc-green" : "bg-oc-text-muted"}`} />
+                    <div>
+                      <div className="text-small font-medium text-oc-text">{p.name}</div>
+                      <div className="text-tiny text-oc-text-muted font-mono">@{p.handle}</div>
+                    </div>
+                  </div>
+                  {connectingPlatform === p.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={platformHandle}
+                        onChange={(e) => setPlatformHandle(e.target.value)}
+                        placeholder="@handle"
+                        className="w-24 px-2 py-1 text-tiny font-mono bg-oc-bg border border-oc-border rounded-[4px] outline-none focus:border-oc-blue"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handlePlatformConnect(p.id)}
+                        className="text-tiny font-semibold text-white bg-oc-green px-2 py-1 rounded-[4px] border-none cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setConnectingPlatform(null); setPlatformHandle(""); }}
+                        className="text-tiny text-oc-text-muted cursor-pointer bg-transparent border-none"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : p.connected ? (
+                    <button
+                      onClick={() => handlePlatformDisconnect(p.id)}
+                      className="text-tiny font-semibold text-oc-red bg-oc-red-light px-2.5 py-1 rounded-[4px] border-none cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setConnectingPlatform(p.id); setPlatformHandle(p.handle); }}
+                      className="text-tiny font-semibold text-oc-blue bg-oc-blue-light px-2.5 py-1 rounded-[4px] border-none cursor-pointer"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              ))}
+              {platforms.length === 0 && (
+                <div className="text-center py-4 text-tiny text-oc-text-muted">
+                  No platforms configured. Add platforms via the database seed.
+                </div>
+              )}
+            </div>
+          </OcCard>
+
+          {/* Content Niches */}
+          <OcCard>
+            <div className="flex items-center gap-2 mb-1">
+              <Lightbulb className="w-4 h-4 text-oc-purple" />
+              <h3 className="text-section-title text-oc-text">Content Niches</h3>
+            </div>
+            <p className="text-tiny text-oc-text-muted mb-3">
+              Topics the Scanner agent tracks for trending content.
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {trackedNiches.map((niche) => (
+                <span key={niche} className="flex items-center gap-1 text-tiny font-semibold px-2.5 py-1 rounded-oc-pill bg-oc-purple-light text-oc-purple">
+                  {niche}
+                  <button
+                    onClick={() => setTrackedNiches((prev) => prev.filter((n) => n !== niche))}
+                    className="ml-0.5 text-oc-purple/60 hover:text-oc-red cursor-pointer bg-transparent border-none p-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newNiche}
+                onChange={(e) => setNewNiche(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newNiche.trim()) {
+                    setTrackedNiches((prev) => [...prev, newNiche.trim()]);
+                    setNewNiche("");
+                  }
+                }}
+                placeholder="Add niche..."
+                className="flex-1 px-3 py-1.5 text-small bg-oc-bg border border-oc-border rounded-oc-sm outline-none focus:border-oc-blue"
+              />
+              <button
+                onClick={() => {
+                  if (newNiche.trim()) {
+                    setTrackedNiches((prev) => [...prev, newNiche.trim()]);
+                    setNewNiche("");
+                  }
+                }}
+                className="flex items-center justify-center w-8 h-8 bg-oc-purple text-white rounded-oc-sm border-none cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </OcCard>
 

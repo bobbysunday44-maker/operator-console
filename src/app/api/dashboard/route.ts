@@ -16,6 +16,8 @@ export async function GET() {
     usageToday,
     platforms,
     recentActivity,
+    hourlyRaw,
+    postsPostedToday,
   ] = await Promise.all([
     prisma.agent.findMany({ include: { _count: { select: { tasks: true } } } }),
     prisma.contentItem.count({ where: { createdAt: { gte: today } } }),
@@ -28,10 +30,45 @@ export async function GET() {
     }),
     prisma.platform.findMany({ orderBy: { name: "asc" } }),
     prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+    // Hourly usage — group by hour for the bar chart
+    prisma.modelUsageLog.findMany({
+      where: { createdAt: { gte: today } },
+      select: { createdAt: true, tokensIn: true, tokensOut: true },
+    }),
+    // Per-platform post counts
+    prisma.socialPost.groupBy({
+      by: ["platformId"],
+      where: { status: "posted", publishedAt: { gte: today } },
+      _count: true,
+    }),
   ]);
 
   const activeAgents = agents.filter((a) => a.status === "active").length;
   const totalTokens = (usageToday._sum.tokensIn || 0) + (usageToday._sum.tokensOut || 0);
+
+  // Build hourly usage array (6am to 5pm = 12 hours)
+  const hourlyBuckets = new Map<number, number>();
+  for (let h = 6; h <= 17; h++) hourlyBuckets.set(h, 0);
+
+  for (const row of hourlyRaw) {
+    const hour = row.createdAt.getHours();
+    if (hourlyBuckets.has(hour)) {
+      hourlyBuckets.set(hour, (hourlyBuckets.get(hour) || 0) + (row.tokensIn || 0) + (row.tokensOut || 0));
+    }
+  }
+
+  const currentHour = new Date().getHours();
+  const hourlyUsage = Array.from(hourlyBuckets.entries()).map(([h, value]) => ({
+    label: `${h > 12 ? h - 12 : h}${h >= 12 ? "p" : "a"}`,
+    value,
+    highlight: h === currentHour,
+  }));
+
+  // Build per-platform posted counts map
+  const platformPostCounts = new Map<string, number>();
+  for (const row of postsPostedToday) {
+    platformPostCounts.set(row.platformId, row._count);
+  }
 
   return NextResponse.json({
     kpis: {
@@ -53,10 +90,13 @@ export async function GET() {
       tasksCompleted: a._count.tasks,
     })),
     platforms: platforms.map((p) => ({
+      id: p.id,
       name: p.name,
       handle: p.handle,
+      niche: p.niche,
       connected: p.connected,
       followers: p.followers,
+      postedToday: platformPostCounts.get(p.id) || 0,
     })),
     recentActivity: recentActivity.map((a) => ({
       id: a.id,
@@ -65,5 +105,6 @@ export async function GET() {
       source: a.source,
       createdAt: a.createdAt,
     })),
+    hourlyUsage,
   });
 }

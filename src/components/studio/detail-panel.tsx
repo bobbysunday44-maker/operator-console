@@ -43,16 +43,54 @@ export function DetailPanel({
   stage,
   characterRefs,
   publishTargets,
+  contentId,
+  onRefresh,
 }: {
   stage: PipelineStage | null;
   characterRefs: CharacterRef[];
   publishTargets: PublishTarget[];
+  contentId?: string;
+  onRefresh?: () => void;
 }) {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   function triggerFeedback(msg: string) {
     setActionFeedback(msg);
     setTimeout(() => setActionFeedback(null), 2000);
+  }
+
+  async function handleRegenerate() {
+    if (!contentId || !stage) return;
+    triggerFeedback("Re-queuing stage...");
+    try {
+      await fetch(`/api/content/${contentId}/pipeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: stage.id, model: stage.model || "claude", status: "pending" }),
+      });
+      triggerFeedback("Stage re-queued!");
+      onRefresh?.();
+    } catch {
+      triggerFeedback("Failed to regenerate");
+    }
+  }
+
+  function handleDownload() {
+    if (!stage?.output) return;
+    // If output looks like a file path, serve via API
+    if (stage.output.includes("/") || stage.output.includes("\\")) {
+      window.open(`/api/files?path=${encodeURIComponent(stage.output)}`, "_blank");
+    } else {
+      // Text output — download as file
+      const blob = new Blob([stage.output], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${stage.id}-output.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    triggerFeedback("Downloaded");
   }
 
   if (!stage) return null;
@@ -121,13 +159,10 @@ export function DetailPanel({
             )}
             {stage.status === "complete" && !actionFeedback && (
               <div className="flex gap-1.5">
-                <button onClick={() => triggerFeedback("Regenerating...")} className="text-tiny font-semibold text-oc-blue bg-oc-blue-light border-none rounded-[6px] px-2.5 py-1 cursor-pointer">
+                <button onClick={handleRegenerate} className="text-tiny font-semibold text-oc-blue bg-oc-blue-light border-none rounded-[6px] px-2.5 py-1 cursor-pointer">
                   Regenerate
                 </button>
-                <button onClick={() => triggerFeedback("Editing prompt...")} className="text-tiny font-semibold text-oc-text-secondary bg-oc-bg border border-oc-border rounded-[6px] px-2.5 py-1 cursor-pointer">
-                  Edit Prompt
-                </button>
-                <button onClick={() => triggerFeedback("Downloaded")} className="text-tiny font-semibold text-oc-text-secondary bg-oc-bg border border-oc-border rounded-[6px] px-2.5 py-1 cursor-pointer">
+                <button onClick={handleDownload} className="text-tiny font-semibold text-oc-text-secondary bg-oc-bg border border-oc-border rounded-[6px] px-2.5 py-1 cursor-pointer">
                   Download
                 </button>
               </div>

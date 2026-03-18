@@ -1,7 +1,7 @@
 /* ── OpenClaw EventBus ──
  * In-memory pub/sub for real-time activity events.
  * Broadcasts to connected SSE clients.
- * Will be replaced by Redis pub/sub once infra is connected.
+ * No demo events — only real system events.
  */
 
 export type EventType =
@@ -77,39 +77,4 @@ const globalForBus = globalThis as unknown as { eventBus: EventBus };
 export const eventBus = globalForBus.eventBus || new EventBus();
 if (process.env.NODE_ENV !== "production") {
   globalForBus.eventBus = eventBus;
-}
-
-/* ── Demo event emitter (runs every 5s in dev to show life) ── */
-const DEMO_EVENTS: Omit<ActivityEvent, "id" | "timestamp">[] = [
-  { type: "agent_status_change", agentId: "agent-ideator", agentName: "Ideator", message: "Started scanning TikTok trending page" },
-  { type: "task_completed", agentId: "agent-writer", agentName: "Writer", message: "Finished script for CNT-0048 (1,240 tokens)" },
-  { type: "pipeline_stage", agentId: "agent-designer", agentName: "Designer", message: "Generating scene image with 3 character refs" },
-  { type: "mention_detected", agentId: "agent-scanner", agentName: "Scanner", message: "New mention on Twitter: @user123 tagged us" },
-  { type: "post_published", agentId: "agent-social-bot", agentName: "Social Bot", message: "Published to Instagram — 12 likes in first minute" },
-  { type: "task_started", agentId: "agent-engage-bot", agentName: "Engage Bot", message: "Responding to 3 Twitter mentions" },
-  { type: "content_created", agentId: "agent-editor", agentName: "Editor", message: "Quality score 8.4/10 for CNT-0047 — approved" },
-  { type: "agent_status_change", agentId: "agent-filmmaker", agentName: "Filmmaker", message: "Veo 3.1 video generation started (9:16 vertical)" },
-];
-
-let demoIndex = 0;
-let demoInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startDemoEvents() {
-  if (demoInterval) return;
-  // Emit initial batch
-  for (let i = 0; i < 5; i++) {
-    eventBus.emit(DEMO_EVENTS[i % DEMO_EVENTS.length]);
-  }
-  // Then one every 5 seconds
-  demoInterval = setInterval(() => {
-    eventBus.emit(DEMO_EVENTS[demoIndex % DEMO_EVENTS.length]);
-    demoIndex++;
-  }, 5000);
-}
-
-export function stopDemoEvents() {
-  if (demoInterval) {
-    clearInterval(demoInterval);
-    demoInterval = null;
-  }
 }

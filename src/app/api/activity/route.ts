@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { eventBus, startDemoEvents } from "@/lib/events/event-bus";
+import { eventBus } from "@/lib/events/event-bus";
 import type { ActivityEvent } from "@/lib/events/event-bus";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +17,7 @@ export async function GET(request: Request) {
     return Response.json(logs);
   }
 
-  // SSE stream — real-time events
-  startDemoEvents();
+  // SSE stream — real-time events (no demo events, only real system events)
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
