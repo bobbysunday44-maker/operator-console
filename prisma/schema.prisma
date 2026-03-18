@@ -1,4 +1,4 @@
-// OpenClaw Platform — Database Schema (22 Tables)
+// OpenClaw Platform — Database Schema (53 Tables)
 // PostgreSQL via Docker · Prisma ORM
 
 generator client {

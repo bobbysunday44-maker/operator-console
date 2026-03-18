@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+import torch
 import soundfile as sf
 import numpy as np
 from fastapi import FastAPI, HTTPException
@@ -196,17 +197,32 @@ async def generate_speech(req: GenerateRequest):
 
 
 @app.post("/profiles/upload")
-async def upload_profile(name: str, reference_text: str):
+async def upload_profile(name: str, reference_text: str, request: "Request"):
     """
     Upload a voice profile. Send the audio as the request body.
     Usage: curl -X POST 'http://localhost:17500/profiles/upload?name=alice&reference_text=Hello+world'
            -H 'Content-Type: audio/wav' --data-binary @reference.wav
     """
-    from fastapi import Request
-    # This endpoint needs raw body handling — simplified for now
+    from starlette.requests import Request as StarletteRequest
+
+    audio_bytes = await request.body()
+    if not audio_bytes or len(audio_bytes) < 100:
+        raise HTTPException(status_code=400, detail="No audio data received. Send .wav file as request body.")
+
+    audio_path = VOICE_DIR / f"{name}.wav"
+    meta_path = VOICE_DIR / f"{name}.txt"
+
+    audio_path.write_bytes(audio_bytes)
+    meta_path.write_text(reference_text)
+
+    logger.info(f"Voice profile '{name}' saved ({len(audio_bytes)} bytes)")
+
     return JSONResponse({
-        "message": f"Profile '{name}' placeholder created. Upload .wav file to voice/profiles/{name}.wav manually.",
-        "profile_dir": str(VOICE_DIR),
+        "ok": True,
+        "profile_id": name,
+        "audio_file": str(audio_path),
+        "size_bytes": len(audio_bytes),
+        "reference_text": reference_text,
     })
 
 
