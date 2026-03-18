@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createCampaign, getCampaigns, getDashboardStats } from "@/lib/campaigns/campaign-manager";
+import { getCampaignDashboard } from "@/lib/business/campaign-lifecycle";
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +13,14 @@ export async function GET(request: Request) {
     // Return dashboard stats if requested
     if (dashboard === "true") {
       const stats = await getDashboardStats();
-      return NextResponse.json({ stats });
+      // Phase 15: Include full business model dashboard stats
+      let businessDashboard = null;
+      try {
+        businessDashboard = await getCampaignDashboard();
+      } catch (dashErr) {
+        console.error("[Campaigns API] Business dashboard failed:", dashErr);
+      }
+      return NextResponse.json({ stats, businessDashboard });
     }
 
     const filters: Record<string, string> = {};

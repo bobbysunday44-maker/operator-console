@@ -156,5 +156,38 @@ export function initializeWorkers() {
     }
   }, 30_000);
 
-  console.log("[Workers] All workers initialized — scanner, dispatcher, heartbeat, mention, trend scan, performance, AB test, rate limiter, think loop, meeting scheduler");
+  // Phase 13: Learning — feed performance data to agents every 2 hours
+  setInterval(async () => {
+    try {
+      const { processPerformanceFeedback } = await import("@/lib/agent-runtime/learning-engine");
+      await processPerformanceFeedback();
+    } catch (err) {
+      console.error("[Learning] Performance feedback failed:", err);
+    }
+  }, 2 * 60 * 60 * 1000);
+
+  // Phase 13: Weekly learning report every Sunday at midnight
+  setInterval(async () => {
+    const now = new Date();
+    if (now.getDay() === 0 && now.getHours() === 0 && now.getMinutes() < 2) {
+      try {
+        const { generateWeeklyLearningReport } = await import("@/lib/agent-runtime/learning-engine");
+        await generateWeeklyLearningReport();
+      } catch (err) {
+        console.error("[Learning] Weekly report failed:", err);
+      }
+    }
+  }, 60_000);
+
+  // Phase 15: Process outreach follow-ups every hour
+  setInterval(async () => {
+    try {
+      const { processFollowUps } = await import("@/lib/business/outreach-automation");
+      await processFollowUps();
+    } catch (err) {
+      console.error("[Outreach] Follow-up processing failed:", err);
+    }
+  }, 60 * 60 * 1000);
+
+  console.log("[Workers] All workers initialized — scanner, dispatcher, heartbeat, mention, trend scan, performance, AB test, rate limiter, think loop, meeting scheduler, learning engine, outreach follow-ups");
 }

@@ -163,7 +163,31 @@ async function perceive(agentId: string): Promise<Perception | null> {
     }));
 
     // Get memory context
-    const memoryContext = await getMemoryPrompt(agentId, state.activity);
+    let memoryContext = await getMemoryPrompt(agentId, state.activity);
+
+    // Phase 13: Load recent feedback/learning memories (last 48 hours) so
+    // the agent's next thought is influenced by what they learned
+    try {
+      const feedbackSince = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const feedbackMemories = await prisma.agentMemoryEntry.findMany({
+        where: {
+          agentId,
+          type: "feedback",
+          createdAt: { gte: feedbackSince },
+        },
+        orderBy: { importance: "desc" },
+        take: 5,
+      });
+
+      if (feedbackMemories.length > 0) {
+        const feedbackLines = feedbackMemories.map(
+          (m) => `- (importance=${m.importance}) ${m.content}`
+        );
+        memoryContext += `\n\n## Recent Learnings & Feedback\n${feedbackLines.join("\n")}`;
+      }
+    } catch {
+      // Non-critical — don't fail perception if feedback loading fails
+    }
 
     // Format time
     const now = new Date();

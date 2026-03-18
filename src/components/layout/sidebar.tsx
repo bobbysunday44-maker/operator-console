@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
+  Building2,
   Wand2,
   Share2,
   MessageSquare,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 
 const navItems = [
+  { key: "/office", label: "Virtual Office", icon: Building2 },
   { key: "/", label: "Overview", icon: LayoutDashboard },
   { key: "/ideas", label: "Ideas & Research", icon: Lightbulb },
   { key: "/studio", label: "Creation Studio", icon: Wand2 },
