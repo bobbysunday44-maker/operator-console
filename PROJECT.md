@@ -1,14 +1,47 @@
 # OpenClaw — Project State
 
-**Last updated:** 2026-03-17
-**Last session:** March 16-17, 2026 (massive build session)
-**Git:** NOT COMMITTED — 74+ files changed, needs commit
+**Last updated:** 2026-03-18
+**Last session:** March 16-18, 2026 (massive build session)
+**Git:** ALL COMMITTED — latest `0040cb8` on `master`, NOT pushed to remote
 **Dev server:** port 3001 (Next.js) + port 17500 (Qwen3-TTS voice server)
 **Docker:** openclaw-db (PostgreSQL 16, port 5433), openclaw-redis (Redis 7, port 6380)
 
 ---
 
-## Current Status: ALL FEATURES BUILT — NEEDS TESTING + COMMIT
+## Current Status: CORE BUILT — 8 FEATURES STILL UNBUILT
+
+### What's DONE and committed:
+- 43 database tables, 90+ API endpoints, 20 dashboard pages, 11 background workers
+- Qwen3-TTS 1.7B voice server (tested working, own venv at voice/.venv/)
+- Visual workflow editor (ReactFlow, 10 node types, 7 templates)
+- 10 ChatGPT features (feedback loop, A/B testing, brand memory, strategy, rate limiting, monetization, autonomous mode, mass operations)
+- Agency-agents repo integration (platform strategies)
+- Multi-niche account system
+- Enhanced crawler (13 deep intel fields)
+- All audited — 9 bugs found and fixed, seed data cleaned (no fake statuses)
+- Build clean, zero errors
+
+### What's NOT DONE (next session):
+1. **25 content templates** — researched (docs/workflow-templates-catalog.md) but NOT added to visual editor code
+2. **Competitor analysis / social listening** — researched (docs/competitor-analysis-research.md) but NOT built
+3. **Content repurposing (long → short)** — researched but NOT built
+4. **Outreach Agent** — discussed (9th agent for contacting businesses) but NOT built
+5. **Campaign Manager** — discussed (Business X → AI Model Y → Content Z tracking) but NOT built
+6. **Media Kit Generator** — discussed (portfolio pages for AI models) but NOT built
+7. **Multi-language support** — not started
+8. **Direct API publishing (TikTok/IG/YT/FB)** — not started, currently using Chrome automation stub
+
+### Business Model (discussed, not coded):
+- AI models advertise for businesses directly (commission per sale)
+- OpenClaw bot does outreach to businesses, pitches AI model advertising services
+- Cut out TikTok/Instagram as revenue source — they're just distribution channels
+- Revenue: commission per buyer from businesses that accept the outreach
+
+### Next Session Plan:
+- Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` for multi-agent collaboration
+- Assemble team: Frontend Developer, Backend Architect, Outbound Strategist, Orchestrator
+- Build all 8 unbuilt features
+- Agents from `~/.claude/agents/` (161 available, already loaded)
 
 ### What was built this session:
 

@@ -66,6 +66,23 @@ Setup completed on 2026-03-17
 - **Niche dropdowns.** Currently hardcoded to AI/Fitness/Finance on strategy, brand, and batch pages. Should eventually be fetched from Settings.
 - **Target platforms.** TikTok, YouTube, Facebook, Instagram are the priority. Twitter is NOT a priority.
 - **Business model.** AI models advertise for businesses directly (commission per sale), not posting on TikTok for views. OpenClaw is an AI advertising agency platform.
+- **All Python uses project venv.** Both Qwen3-TTS and edge-tts run from `voice/.venv/`. No system Python at runtime.
+- **Docker dependency.** App needs Docker running for PostgreSQL + Redis. Containers auto-start if Docker Desktop is running.
+- **Agent teams.** 161 agents installed at `~/.claude/agents/`. Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` for multi-agent collaboration.
+
+## Unbuilt Features (Next Session)
+
+These were researched/discussed but NO code was written:
+1. 25 content templates → visual editor (see `docs/workflow-templates-catalog.md`)
+2. Competitor analysis / social listening (see `docs/competitor-analysis-research.md`)
+3. Content repurposing (long → short)
+4. Outreach Agent (9th agent — contacts businesses for advertising deals)
+5. Campaign Manager (Business X → AI Model Y → Content Z → Revenue tracking)
+6. Media Kit Generator (portfolio pages for AI models)
+7. Multi-language support
+8. Direct API publishing to TikTok/Instagram/YouTube/Facebook
+
+Team for next session: Frontend Developer, Backend Architect, Outbound Strategist, Orchestrator (all from `~/.claude/agents/`)
 
 ---
 
