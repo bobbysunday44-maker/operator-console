@@ -95,8 +95,18 @@ model Agent {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  // OCEAN personality traits (Big Five)
+  openness          Float @default(0.5)
+  conscientiousness Float @default(0.5)
+  extraversion      Float @default(0.5)
+  agreeableness     Float @default(0.5)
+  neuroticism       Float @default(0.3)
+
   logs        AgentLog[]
   tasks       Task[]
+  memories    AgentMemoryEntry[] @relation("agent_memories")
+  reflections AgentReflection[]  @relation("agent_reflections")
+  state       AgentState?        @relation("agent_state")
 
   @@index([status])
   @@map("agents")
@@ -1106,4 +1116,120 @@ model RepurposedContent {
   @@index([sourceContentId])
   @@index([platform])
   @@map("repurposed_content")
+}
+
+// ══════════════════════════════════════════════════════════
+// AGENT MEMORY SYSTEM — Generative agents with memory streams
+// ══════════════════════════════════════════════════════════
+
+model AgentMemoryEntry {
+  id           String   @id @default(cuid())
+  agentId      String
+  agent        Agent    @relation("agent_memories", fields: [agentId], references: [id], onDelete: Cascade)
+  content      String   @db.Text
+  type         String   @default("experience") // experience, conversation, reflection, feedback, meeting
+  importance   Int      @default(5) // 1-10, rated by LLM
+  source       String?  // who/what created this memory (another agent, system, user)
+  relatedTo    String?  // agentId or contentItemId this memory is about
+  tags         String[]
+  accessCount  Int      @default(0)
+  lastAccessed DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([agentId, importance])
+  @@index([agentId, createdAt])
+  @@index([type])
+  @@map("agent_memory_entries")
+}
+
+model AgentReflection {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation("agent_reflections", fields: [agentId], references: [id], onDelete: Cascade)
+  insight   String   @db.Text
+  basedOn   String[] // memory entry IDs that triggered this reflection
+  confidence Float   @default(0.5) // 0-1
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@map("agent_reflections")
+}
+
+// ══════════════════════════════════════════════════════════
+// AGENT STATE — Position, activity, mood for think loop
+// ══════════════════════════════════════════════════════════
+
+model AgentState {
+  id              String   @id @default(cuid())
+  agentId         String   @unique
+  agent           Agent    @relation("agent_state", fields: [agentId], references: [id], onDelete: Cascade)
+  position        String   @default("desk") // desk, meeting_table, lounge, walking, other_desk
+  activity        String   @default("idle") // idle, working, talking, meeting, thinking, resting
+  mood            String   @default("neutral") // neutral, focused, excited, frustrated, relaxed
+  energy          Float    @default(1.0) // 0-1, decreases over time, resets after "rest"
+  currentThought  String?  @db.Text
+  talkingTo       String?  // agentId if in conversation
+  lastAction      String?
+  lastActionAt    DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@map("agent_states")
+}
+
+// ══════════════════════════════════════════════════════════
+// PHASE 11: COMMUNICATION HUB — Team channels & DMs
+// ══════════════════════════════════════════════════════════
+
+model ChatChannel {
+  id          String   @id @default(cuid())
+  name        String   @unique // general, pipeline, outreach, engagement, agent-talk
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  messages    ChannelMessage[]
+
+  @@map("chat_channels")
+}
+
+model ChannelMessage {
+  id            String   @id @default(cuid())
+  channelId     String
+  channel       ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  senderId      String   // agentId or "bobby"
+  senderName    String
+  senderType    String   // agent, user, system
+  content       String   @db.Text
+  mentions      String[] // agentIds mentioned with @
+  replyToId     String?  // for threaded replies
+  messageType   String   @default("text") // text, decision_card, system, meeting_start, meeting_end
+  metadata      Json?    // for decision cards: { choices: ["Yes", "No"], chosen: "Yes" }
+  createdAt     DateTime @default(now())
+
+  @@index([channelId, createdAt])
+  @@index([senderId])
+  @@map("channel_messages")
+}
+
+// ══════════════════════════════════════════════════════════
+// PHASE 12: MEETING SYSTEM — Standups, debriefs, retros
+// ══════════════════════════════════════════════════════════
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // standup, debrief, retrospective, strategy, adhoc
+  channelId   String?  // which channel the meeting happens in
+  attendees   String[] // agentIds
+  status      String   @default("scheduled") // scheduled, in_progress, completed
+  agenda      String?  @db.Text
+  minutes     String?  @db.Text // auto-generated summary
+  outcomes    String[] // decisions made, tasks created
+  scheduledAt DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status, scheduledAt])
+  @@map("meetings")
 }

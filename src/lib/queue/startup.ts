@@ -131,5 +131,30 @@ export function initializeWorkers() {
     }
   }, 60 * 1000);
 
-  console.log("[Workers] All workers initialized — scanner, dispatcher, heartbeat, mention, trend scan, performance, AB test, rate limiter");
+  // Phase 10: Agent think loop (perceive → think → act every 15 seconds)
+  import("@/lib/agent-runtime/think-loop")
+    .then(({ startThinkLoopWorker }) => startThinkLoopWorker())
+    .catch((err) => console.error("[ThinkLoop] Failed to start:", err));
+
+  // Phase 12: Meeting scheduler (checks every 60 seconds for due meetings)
+  setInterval(async () => {
+    try {
+      const { checkAndStartMeetings } = await import("@/lib/agent-runtime/meeting-engine");
+      await checkAndStartMeetings();
+    } catch (err) {
+      console.error("[MeetingScheduler] Check failed:", err);
+    }
+  }, 60_000);
+
+  // Initialize default meetings 30 seconds after startup
+  setTimeout(async () => {
+    try {
+      const { initializeDefaultMeetings } = await import("@/lib/agent-runtime/meeting-engine");
+      await initializeDefaultMeetings();
+    } catch (err) {
+      console.error("[MeetingScheduler] Failed to initialize default meetings:", err);
+    }
+  }, 30_000);
+
+  console.log("[Workers] All workers initialized — scanner, dispatcher, heartbeat, mention, trend scan, performance, AB test, rate limiter, think loop, meeting scheduler");
 }
