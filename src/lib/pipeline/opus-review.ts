@@ -140,20 +140,13 @@ Respond in EXACTLY this JSON format:
   const approved = score >= 7 && review.verdict !== "redo";
   const notes = review.notes || "No notes provided";
 
-  // Save review as a pipeline run record
-  await prisma.pipelineRun.create({
+  // Log review to activity log (NOT as a pipeline run — that would confuse image/video workers)
+  await prisma.activityLog.create({
     data: {
-      contentItemId,
-      stage: "prompt", // reuse prompt stage for review record
-      model: "claude",
-      status: "completed",
-      inputPrompt: "Opus AI Review",
-      outputPreview: `Score: ${score}/10 | ${notes}`,
-      tokensIn,
-      tokensOut,
-      cost,
-      duration: latency,
-      completedAt: new Date(),
+      type: "success",
+      message: `Opus review: ${contentItemId} scored ${score}/10`,
+      source: "agent",
+      metadata: { contentItemId, qualityScore: score, confidence: 0.85, notes, tokensIn, tokensOut, cost } as object,
     },
   });
 

@@ -67,7 +67,9 @@ Setup completed on 2026-03-17
 - **Target platforms.** TikTok, YouTube, Facebook, Instagram are the priority. Twitter is NOT a priority.
 - **Business model.** AI models advertise for businesses directly (commission per sale), not posting on TikTok for views. OpenClaw is an AI advertising agency platform.
 - **All Python uses project venv.** Both Qwen3-TTS and edge-tts run from `voice/.venv/`. No system Python at runtime.
-- **Docker dependency.** App needs Docker running for PostgreSQL + Redis. Containers auto-start if Docker Desktop is running.
+- **Docker dependency (MIGRATING).** Currently needs Docker for PostgreSQL + Redis. Plan: migrate to Supabase (Postgres) + Upstash (Redis) to remove Docker entirely. Just connection string changes, zero code changes.
+- **Desktop launcher.** `launch.py` + `start.bat` + `launcher-venv/` (Python 3.10, pywebview). Same pattern as NEXUS Voice Command Center. Shortcut on `~/OneDrive/Desktop/`.
+- **Launcher venv is separate.** `launcher-venv/` is NOT the voice venv. Voice = `voice/.venv/`, Launcher = `launcher-venv/`. Both Python 3.10.
 - **Agent teams.** 161 agents installed at `~/.claude/agents/`. Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` for multi-agent collaboration.
 
 ## Unbuilt Features (Next Session)
@@ -91,17 +93,13 @@ Team for next session: Frontend Developer, Backend Architect, Outbound Strategis
 Not deployed yet. Development only.
 
 **To start locally:**
+Option A: Double-click OpenClaw desktop shortcut (auto-starts Docker + Next.js + opens native window)
+
+Option B: Manual:
 ```bash
-# 1. Start Docker containers
 docker start openclaw-db openclaw-redis
-
-# 2. Start dev server (auto-starts voice server)
 cd ~/openclaw && npx next dev -p 3001
-
-# 3. Voice server auto-launches on port 17500
-#    First run downloads 3.4GB model
-
-# 4. Open http://localhost:3001
+# Open http://localhost:3001
 ```
 
 **Required env vars (set in Settings page, stored in DB):**

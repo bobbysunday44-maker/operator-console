@@ -564,6 +564,12 @@ async function processLipSync(job: Job<PipelineJobData>) {
     return;
   }
 
+  // fal.ai needs publicly accessible URLs, not local file paths
+  // For now, construct a local server URL — in production, use cloud storage (S3/R2)
+  const baseUrl = process.env.PUBLIC_URL || "http://localhost:3001";
+  const videoInput = videoAsset.filePath.startsWith("http") ? videoAsset.filePath : `${baseUrl}/api/files/${encodeURIComponent(videoAsset.filePath)}`;
+  const audioInput = audioAsset.filePath.startsWith("http") ? audioAsset.filePath : `${baseUrl}/api/files/${encodeURIComponent(audioAsset.filePath)}`;
+
   // Step 1: Submit lip sync job to fal.ai queue
   const submitRes = await fetch("https://queue.fal.run/fal-ai/kling-video/lipsync/audio-to-video", {
     method: "POST",
@@ -572,8 +578,8 @@ async function processLipSync(job: Job<PipelineJobData>) {
       "Authorization": `Key ${falKey}`,
     },
     body: JSON.stringify({
-      video_url: videoAsset.filePath,
-      audio_url: audioAsset.filePath,
+      video_url: videoInput,
+      audio_url: audioInput,
     }),
   });
 

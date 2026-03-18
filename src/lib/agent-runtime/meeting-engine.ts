@@ -504,7 +504,7 @@ export async function initializeDefaultMeetings(): Promise<void> {
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
     const tomorrowStart = new Date(todayStart);
-    tomorrowStart.setDate(tomorrowStart.getDate() + 2);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
     const existingMeetings = await prisma.meeting.findMany({
       where: {

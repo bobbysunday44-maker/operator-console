@@ -191,10 +191,11 @@ export async function scheduleFollowUp(outreachId: string, days: number) {
   const nextFollowUp = new Date();
   nextFollowUp.setDate(nextFollowUp.getDate() + days);
 
+  // Only set next follow-up date — don't increment count here
+  // Count is incremented by processFollowUps when the follow-up is actually processed
   const updated = await prisma.outreach.update({
     where: { id: outreachId },
     data: {
-      followUpCount: { increment: 1 },
       nextFollowUp,
     },
   });

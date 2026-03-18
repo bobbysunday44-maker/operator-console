@@ -189,15 +189,10 @@ export function DetailPanel({
           )}
         </div>
 
-        {/* Running stage actions */}
+        {/* Running stage info — pipeline runs automatically through all stages */}
         {stage.status === "running" && (
-          <div className="flex gap-2">
-            <button onClick={() => triggerFeedback("Pipeline paused")} className="flex-1 text-small font-semibold text-oc-amber bg-oc-amber-light border-none rounded-oc-sm py-2.5 cursor-pointer">
-              &#x23F8; Pause
-            </button>
-            <button onClick={() => triggerFeedback("Pipeline cancelled")} className="flex-1 text-small font-semibold text-oc-red bg-oc-red-light border-none rounded-oc-sm py-2.5 cursor-pointer">
-              &#x2715; Cancel
-            </button>
+          <div className="p-2 bg-oc-blue-light rounded-oc-sm text-center">
+            <span className="text-tiny text-oc-blue font-semibold">Pipeline running — each stage completes automatically</span>
           </div>
         )}
 
@@ -223,9 +218,9 @@ export function DetailPanel({
                   <OcBadge label="Active" color="#7C3AED" bg="#F5F3FF" />
                 </div>
               ))}
-              <button onClick={() => triggerFeedback("Upload reference image...")} className="min-w-[80px] p-[10px_14px] bg-oc-bg border border-dashed border-oc-border rounded-[10px] flex items-center justify-center cursor-pointer text-small text-oc-text-muted hover:border-oc-blue hover:text-oc-blue transition-colors">
-                + Add
-              </button>
+              <span className="min-w-[80px] p-[10px_14px] bg-oc-bg border border-dashed border-oc-border rounded-[10px] flex items-center justify-center text-[10px] text-oc-text-muted">
+                Add in Characters page
+              </span>
             </div>
           </div>
         )}

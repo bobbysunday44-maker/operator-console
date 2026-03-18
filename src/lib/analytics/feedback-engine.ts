@@ -17,11 +17,14 @@ export async function generateLearnings(niche: string): Promise<number> {
 
   if (performances.length < 5) return 0;
 
-  // Calculate average engagement
-  const avgEngagement = performances.reduce((sum, p) => {
-    const total = p.likes + p.comments + p.shares + p.saves;
-    return sum + (p.views > 0 ? (total / p.views) * 100 : 0);
-  }, 0) / performances.length;
+  // Calculate average engagement (exclude zero-view posts from denominator)
+  const postsWithViews = performances.filter((p) => p.views > 0);
+  const avgEngagement = postsWithViews.length > 0
+    ? postsWithViews.reduce((sum, p) => {
+        const total = p.likes + p.comments + p.shares + p.saves;
+        return sum + (total / p.views) * 100;
+      }, 0) / postsWithViews.length
+    : 0;
 
   let learnings = 0;
 

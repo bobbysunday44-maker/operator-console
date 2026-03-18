@@ -34,6 +34,7 @@ const ALLOWED_KEYS = new Set([
   "TRACKED_NICHES",
   "SOCIAL_API_KEY",
   "SOCIAL_API_PROVIDER",
+  "TELEGRAM_CHAT_ID",
 ]);
 
 export async function GET() {

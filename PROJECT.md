@@ -1,10 +1,11 @@
 # OpenClaw — Project State
 
 **Last updated:** 2026-03-18
-**Last session:** March 16-18, 2026 (massive build session)
-**Git:** ALL COMMITTED — latest `0040cb8` on `master`, NOT pushed to remote
+**Last session:** March 18, 2026 (audit bugfixes + desktop launcher)
+**Git:** Uncommitted changes — audit bugfixes + desktop launcher files
 **Dev server:** port 3001 (Next.js) + port 17500 (Qwen3-TTS voice server)
 **Docker:** openclaw-db (PostgreSQL 16, port 5433), openclaw-redis (Redis 7, port 6380)
+**Desktop app:** `launch.py` + `start.bat` + `launcher-venv/` (pywebview, Python 3.10) — shortcut on Desktop
 
 ---
 
@@ -20,6 +21,32 @@
 - Enhanced crawler (13 deep intel fields)
 - All audited — 9 bugs found and fixed, seed data cleaned (no fake statuses)
 - Build clean, zero errors
+
+### March 18, 2026 — Audit Bugfixes + Desktop Launcher:
+**Audit bugfixes (from previous session's 3-agent audit):**
+1. `opus-review.ts` — Changed from saving review as pipeline run to activity log (was confusing image/video workers)
+2. `telegram/route.ts` — Admin chat ID lockdown (first msg sets admin, non-admin msgs ignored)
+3. `outreach-engine.ts` — Removed double-increment of followUpCount
+4. `workers.ts` — Lip sync file paths now construct public URLs for fal.ai (`videoInput`/`audioInput`)
+5. `settings/route.ts` — Added TELEGRAM_CHAT_ID to allowed keys
+6. `meeting-engine.ts` — Fixed date range off-by-1 (was +2 instead of +1)
+7. `feedback-engine.ts` — Fixed avg calculation to exclude zero-view posts
+8. `detail-panel.tsx` — Removed fake Pause/Cancel buttons, changed "+ Add" to informational label
+9. `voice/server.py` — Made upload_profile endpoint actually accept audio data
+10. `schema.prisma` — Updated table count comment (22 → 53)
+
+**Desktop launcher (pywebview):**
+- `launch.py` — Starts Docker + Next.js, opens native EdgeChromium window + system tray
+- `start.bat` — Invokes launcher via `launcher-venv/`
+- `launcher-venv/` — Python 3.10 venv with pywebview, pystray, Pillow
+- `icon.ico` + `icon.png` — App icon (claw + orb design)
+- Desktop shortcut at `~/OneDrive/Desktop/OpenClaw.lnk`
+- Same pattern as NEXUS Voice Command Center
+
+**Planned (not done yet):**
+- Migrate Docker PostgreSQL → Supabase free tier (just change DATABASE_URL)
+- Migrate Docker Redis → Upstash Redis free tier (just change REDIS_URL)
+- Remove Docker dependency entirely
 
 ### What's NOT DONE (next session):
 1. **25 content templates** — researched (docs/workflow-templates-catalog.md) but NOT added to visual editor code
@@ -220,7 +247,8 @@ When the Writer agent generates a script, the system prompt now includes ALL of:
 | Niche configuration | Empty | No niches chosen yet — system is flexible |
 | Platform connections | Not connected | No real social accounts connected |
 | API keys | Not set | Need ANTHROPIC_API_KEY, GEMINI_API_KEY in Settings |
-| Git commit | NEEDED | 74+ uncommitted files |
+| Docker → Supabase + Upstash | PLANNED | Remove Docker dependency, use cloud Postgres + Redis |
+| Desktop launcher testing | NEEDS RESTART | Icon cache may need PC restart to show properly |
 | End-to-end test | NEEDED | Haven't run full pipeline with real APIs |
 | SoX installation | Missing | Voice server warns but works without it |
 | flash-attn | Not installed | Optional, speeds up voice generation |
@@ -229,6 +257,10 @@ When the Writer agent generates a script, the system prompt now includes ALL of:
 
 ## How to Resume Next Session
 
+**Option A: Desktop App (preferred)**
+Double-click the OpenClaw shortcut on Desktop — it auto-starts Docker, Next.js, and opens a native window.
+
+**Option B: Manual**
 ```bash
 # 1. Start Docker (PostgreSQL + Redis)
 docker start openclaw-db openclaw-redis
@@ -236,16 +268,13 @@ docker start openclaw-db openclaw-redis
 # 2. Start dev server (auto-starts voice server too)
 cd ~/openclaw && npx next dev -p 3001
 
-# 3. Voice server starts automatically on port 17500
-#    First time: downloads 3.4GB model, takes ~2 min
-#    After that: loads in ~90 seconds
-
-# 4. Open dashboard
-http://localhost:3001
-
-# 5. If voice server didn't auto-start:
-cd ~/openclaw && voice/.venv/Scripts/python.exe voice/server.py
+# 3. Open http://localhost:3001
 ```
+
+**Next steps when resuming:**
+1. Test desktop launcher after PC restart (icon cache should be fresh)
+2. Migrate Docker → Supabase + Upstash (remove Docker dependency)
+3. Then build the 8 unbuilt features with agent team
 
 ---
 

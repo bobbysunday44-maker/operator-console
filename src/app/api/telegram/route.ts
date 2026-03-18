@@ -326,14 +326,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Auto-save Bobby's chat ID so notifyBobby() can reach him
+    // Auto-save Bobby's chat ID — only if not already set
+    // First message sets the admin chat ID. After that, only the admin can interact.
     const existingChatId = await getSetting("TELEGRAM_CHAT_ID");
     if (!existingChatId) {
+      // First message ever — this becomes the admin
       await prisma.setting.upsert({
         where: { key: "TELEGRAM_CHAT_ID" },
         create: { key: "TELEGRAM_CHAT_ID", value: String(chatId), encrypted: false },
         update: { value: String(chatId) },
       });
+      console.log(`[Telegram] Admin chat ID set to ${chatId}`);
+    } else if (String(chatId) !== existingChatId) {
+      // Not the admin — ignore
+      console.log(`[Telegram] Ignoring message from non-admin chat ${chatId}`);
+      return NextResponse.json({ ok: true });
     }
 
     // Check for commands first
