@@ -76,6 +76,8 @@ enum ModelProvider {
   gemini_veo
   kling
   edge_tts
+  qwen3_tts
+  flux_lora
   ffmpeg
 }
 
@@ -131,9 +133,12 @@ model ContentItem {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  assets      ContentAsset[]
-  pipelineRuns PipelineRun[]
-  socialPosts SocialPost[]
+  assets              ContentAsset[]
+  pipelineRuns        PipelineRun[]
+  socialPosts         SocialPost[]
+  abTests             ABTest[]
+  calendarEntries     ContentCalendar[]
+  autonomousDecisions AutonomousDecision[]
 
   @@index([status])
   @@index([createdAt])
@@ -190,10 +195,12 @@ model Character {
   description     String   @db.Text
   stylePrompt     String   @db.Text
   niche           String?
-  referenceImages String[] // file paths to reference images
+  referenceImages String[]
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  profile         CharacterProfile?
 
   @@map("characters")
 }
@@ -204,6 +211,7 @@ model Platform {
   id          String   @id @default(cuid())
   name        String   // Twitter/X, Instagram, LinkedIn, TikTok, YouTube, Reddit
   handle      String
+  niche       String   @default("") // which niche this account belongs to — empty string means all niches
   connected   Boolean  @default(false)
   credentials Json?    // encrypted connection info
   followers   Int      @default(0)
@@ -211,10 +219,13 @@ model Platform {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  posts     SocialPost[]
-  mentions  Mention[]
+  posts       SocialPost[]
+  mentions    Mention[]
+  rateLimit   PlatformRateLimit?
+  postingLogs PostingLog[]
 
-  @@unique([name, handle])
+  @@unique([name, handle, niche])
+  @@index([niche])
   @@map("platforms")
 }
 
@@ -235,6 +246,12 @@ model SocialPost {
   error         String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+
+  performances    ContentPerformance[]
+  engagements     EngagementSnapshot[]
+  postingLogs     PostingLog[]
+  revenueEvents   RevenueEvent[]
+  abTestVariants  ABTestVariant[]
 
   @@index([platformId, status])
   @@index([scheduledAt])
@@ -484,4 +501,480 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// ── 23. Trending Topics (Idea Bank) ──
+
+model TrendingTopic {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?  @db.Text
+  source          String   // twitter, tiktok, youtube, reddit, google_trends, news, blog
+  sourceUrl       String?
+  sourceAuthor    String?  // who posted it — @username, channel name, subreddit
+  sourceFollowers Int?     // how big is the source account
+  platform        String?  // which platform it's trending on
+  niche           String   // AI, tech, fitness, finance, etc.
+  tags            String[]
+  viralityScore   Float    @default(0) // 0-100, higher = more viral potential
+  growthRate      String?  // how fast it's growing — "500 likes in 2 hours", "+200% in 24h"
+  contentFormat   String?  // what format the original is — video, thread, carousel, article, meme
+  hookUsed        String?  // what hook made it go viral — the first line or first 3 seconds
+  whyViral        String?  @db.Text // analysis: why is this blowing up? what emotion does it hit?
+  contentAngle    String?  @db.Text // suggested angle: how WE should cover this topic differently
+  audienceDemo    String?  // who's engaging — "Gen Z", "tech founders", "gym bros", "traders"
+  engagementData  Json?    // { likes, shares, comments, views, saves, bookmarks }
+  competitorsCovering String[] // who else already made content about this
+  status          String   @default("new") // new, reviewed, selected, used, dismissed
+  usedInContent   String?  // contentItemId if converted to content
+  opusNotes       String?  @db.Text // Opus's take on this topic after reviewing
+  scannedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([niche, viralityScore])
+  @@index([status])
+  @@index([scannedAt])
+  @@map("trending_topics")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 1: FEEDBACK LOOP — Learn from what performs best
+// ══════════════════════════════════════════════════════════
+
+model ContentPerformance {
+  id              String   @id @default(cuid())
+  postId          String
+  post            SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  views           Int      @default(0)
+  likes           Int      @default(0)
+  shares          Int      @default(0)
+  comments        Int      @default(0)
+  saves           Int      @default(0)
+  watchTimeSeconds Int?    // total watch time in seconds
+  avgWatchPercent Float?   // 0-100, average % of video watched
+  retentionRate   Float?   // 0-100, % viewers who watched past 3 seconds
+  ctr             Float?   // click-through rate 0-100
+  reachCount      Int      @default(0)
+  impressions     Int      @default(0)
+  followerGain    Int      @default(0) // followers gained from this post
+  capturedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  learnings       PerformanceLearning[]
+
+  @@index([postId])
+  @@index([capturedAt])
+  @@map("content_performance")
+}
+
+model PerformanceLearning {
+  id              String   @id @default(cuid())
+  performanceId   String
+  performance     ContentPerformance @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  niche           String
+  category        String   // hook_pattern, caption_style, thumbnail_design, posting_time, content_length, pacing, music_choice, transition_style
+  pattern         String   @db.Text // the specific pattern that worked or didn't
+  avgEngagement   Float    @default(0) // average engagement rate when this pattern is used
+  timesUsed       Int      @default(1)
+  timesWon        Int      @default(0) // times this pattern outperformed alternatives
+  winRate         Float    @default(0) // timesWon / timesUsed
+  insight         String?  @db.Text // AI-generated insight about why this works
+  isPositive      Boolean  @default(true) // true = do more, false = avoid
+  lastUpdated     DateTime @updatedAt
+
+  @@index([niche, category])
+  @@index([winRate])
+  @@map("performance_learning")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 2: REAL ENGAGEMENT ANALYTICS — Deep per-post metrics
+// ══════════════════════════════════════════════════════════
+
+model EngagementSnapshot {
+  id                    String   @id @default(cuid())
+  postId                String
+  post                  SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform              String
+  hourlyBreakdown       Json?    // { "0": { views: 100, likes: 5 }, "1": {...} }
+  demographicData       Json?    // { ageRanges: {...}, genders: {...}, locations: {...} }
+  peakEngagementHour    Int?     // hour of day (0-23) with highest engagement
+  bestDayOfWeek         Int?     // 0=Sunday, 6=Saturday
+  audienceGrowthRate    Float?   // % growth in followers during post lifetime
+  viralCoefficient      Float?   // how many new viewers each viewer brings (>1 = viral)
+  shareToViewRatio      Float?   // shares / views — key virality indicator
+  saveToViewRatio       Float?   // saves / views — key value indicator
+  commentSentiment      Float?   // -1 to 1, average sentiment of comments
+  topCommentThemes      String[] // most common themes in comments
+  capturedAt            DateTime @default(now())
+
+  @@index([postId])
+  @@index([platform, capturedAt])
+  @@map("engagement_snapshots")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 3: A/B TESTING — Test variations, scale winners
+// ══════════════════════════════════════════════════════════
+
+model ABTest {
+  id              String   @id @default(cuid())
+  contentItemId   String
+  contentItem     ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  name            String   // e.g., "Hook test for AI reel"
+  status          String   @default("running") // running, paused, completed, cancelled
+  winnerVariant   String?  // "A", "B", "C" — the winning variant label
+  winMetric       String   @default("engagement") // which metric decides the winner: engagement, views, saves, ctr
+  minSampleSize   Int      @default(1000) // minimum views before declaring winner
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  variants        ABTestVariant[]
+
+  @@index([contentItemId, status])
+  @@map("ab_tests")
+}
+
+model ABTestVariant {
+  id              String   @id @default(cuid())
+  testId          String
+  test            ABTest   @relation(fields: [testId], references: [id], onDelete: Cascade)
+  variantLabel    String   // A, B, C, D, E
+  hookText        String?  @db.Text // different hook for this variant
+  caption         String?  @db.Text // different caption
+  thumbnailUrl    String?  // different thumbnail
+  postId          String?  // the actual post used for this variant
+  post            SocialPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  views           Int      @default(0)
+  engagementRate  Float    @default(0)
+  ctr             Float    @default(0)
+  saves           Int      @default(0)
+  isWinner        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@unique([testId, variantLabel])
+  @@index([testId])
+  @@map("ab_test_variants")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 4: CHARACTER CONSISTENCY — Persistent identity
+// ══════════════════════════════════════════════════════════
+
+model CharacterProfile {
+  id                String   @id @default(cuid())
+  characterId       String   @unique
+  character         Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  voiceProfile      String?  @db.Text // voice characteristics, accent, speed, tone
+  voiceModelId      String?  // edge-tts voice or custom voice model ID
+  colorPalette      String[] // hex colors: primary, secondary, accent, background
+  typography        Json?    // { headingFont, bodyFont, sizes, weights }
+  catchphrases      String[] // recurring phrases this character uses
+  personalityTraits String[] // "witty", "nerdy", "motivational", "sarcastic"
+  doList            String[] // things this character ALWAYS does
+  dontList          String[] // things this character NEVER does
+  speakingStyle     String?  @db.Text // how they talk: formal, slang, emoji usage, sentence length
+  visualStyle       String?  @db.Text // consistent visual direction: lighting, angles, color grading
+  referenceVideoUrls String[] // example videos showing this character's style
+  consistencyScore  Float    @default(100) // 0-100, how consistent recent content is
+  totalAppearances  Int      @default(0)
+  lastUsedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("character_profiles")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 5: BRAND MEMORY — What works, style evolution
+// ══════════════════════════════════════════════════════════
+
+model BrandMemory {
+  id          String   @id @default(cuid())
+  niche       String
+  category    String   // hook, style, tone, format, timing, audience, music, transition, thumbnail, cta
+  insight     String   @db.Text // what was learned
+  confidence  Float    @default(50) // 0-100, how sure are we this is true
+  source      String   @default("performance") // performance, manual, opus
+  isPositive  Boolean  @default(true) // true = do more of this, false = avoid this
+  examples    String[] // post IDs or URLs that exemplify this insight
+  timesValidated Int   @default(1) // how many times this insight was confirmed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([niche, category])
+  @@index([confidence])
+  @@map("brand_memory")
+}
+
+model BrandVoice {
+  id                String   @id @default(cuid())
+  niche             String   @unique
+  toneDescription   String   @db.Text // "Confident but approachable. Uses humor. Never preachy."
+  vocabulary        String[] // words we USE: "insane", "game-changer", "lowkey"
+  avoidWords        String[] // words we AVOID: "synergy", "leverage", "utilize"
+  emojiStyle        String?  // "heavy", "minimal", "none", "strategic"
+  sentenceStyle     String?  // "short punchy", "storytelling", "conversational"
+  examplePosts      String[] // post IDs that perfectly capture this voice
+  audiencePersona   String?  @db.Text // who we're talking to: age, interests, language level
+  competitorVoices  Json?    // { "@competitor1": "their style", "@competitor2": "their style" }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("brand_voice")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 6: CONTENT STRATEGY — Buckets, ratios, series
+// ══════════════════════════════════════════════════════════
+
+model ContentBucket {
+  id              String   @id @default(cuid())
+  niche           String
+  name            String   // educational, entertainment, controversial, tutorial, promotional, community, behind_the_scenes
+  targetRatio     Float    @default(0.2) // 0-1, what % of content should be this type
+  actualRatio     Float    @default(0)   // calculated from recent posts
+  description     String?  @db.Text // what kind of content goes in this bucket
+  color           String?  // hex color for UI display
+  exampleTitles   String[] // example content titles for this bucket
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  calendars       ContentCalendar[]
+
+  @@unique([niche, name])
+  @@index([niche])
+  @@map("content_buckets")
+}
+
+model ContentSeries {
+  id              String   @id @default(cuid())
+  niche           String
+  name            String   // "Day in the Life of an AI Agent", "60-Second AI Tips"
+  description     String?  @db.Text
+  episodeCount    Int      @default(0) // how many episodes produced so far
+  nextEpisodeNum  Int      @default(1)
+  schedule        String?  // cron expression: "0 9 * * 1" = every Monday at 9am
+  templatePrompt  String?  @db.Text // base prompt template for generating episodes
+  characterId     String?  // recurring character for this series
+  isActive        Boolean  @default(true)
+  avgPerformance  Float    @default(0) // average engagement of series episodes
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  calendars       ContentCalendar[]
+
+  @@index([niche, isActive])
+  @@map("content_series")
+}
+
+model ContentCalendar {
+  id              String   @id @default(cuid())
+  niche           String
+  scheduledDate   DateTime
+  timeSlot        String?  // "morning", "afternoon", "evening", "peak" — or specific time "14:00"
+  bucketId        String?
+  bucket          ContentBucket? @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  seriesId        String?
+  series          ContentSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  contentItemId   String?
+  contentItem     ContentItem? @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+  status          String   @default("planned") // planned, created, posted, failed, skipped
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([niche, scheduledDate])
+  @@index([status])
+  @@map("content_calendar")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 8: PLATFORM RISK — Rate limiting, human-like delays
+// ══════════════════════════════════════════════════════════
+
+model PlatformRateLimit {
+  id                    String   @id @default(cuid())
+  platformId            String   @unique
+  platform              Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  maxPostsPerHour       Int      @default(2)
+  maxPostsPerDay        Int      @default(10)
+  minDelaySeconds       Int      @default(600)  // minimum 10 minutes between posts
+  maxDelaySeconds       Int      @default(3600) // maximum 1 hour between posts
+  humanVariance         Boolean  @default(true) // add random +-30% to delays
+  randomScrollBefore    Boolean  @default(true) // scroll feed before posting (looks human)
+  cooldownUntil         DateTime? // if rate limited, don't post until this time
+  dailyPostCount        Int      @default(0) // reset at midnight
+  lastPostAt            DateTime?
+  lastResetAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("platform_rate_limits")
+}
+
+model PostingLog {
+  id              String   @id @default(cuid())
+  platformId      String
+  platform        Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  postId          String
+  post            SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  action          String   // post, reply, like, follow, story
+  delayApplied    Int?     // seconds waited before posting
+  success         Boolean  @default(true)
+  errorMessage    String?
+  browserSessionId String?
+  postedAt        DateTime @default(now())
+
+  @@index([platformId, postedAt])
+  @@map("posting_log")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 9: MONETIZATION — Affiliate links, CTAs, revenue
+// ══════════════════════════════════════════════════════════
+
+model AffiliateLink {
+  id              String   @id @default(cuid())
+  niche           String
+  name            String   // "AI Tool Affiliate", "Gym Supplement Link"
+  url             String   // full URL
+  shortCode       String?  @unique // short URL code
+  platform        String   // which platform this link is promoted on
+  campaign        String?  // campaign name for tracking
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+  revenue         Float    @default(0) // total revenue generated
+  commissionRate  Float?   // % commission per sale
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  events          RevenueEvent[]
+
+  @@index([niche, isActive])
+  @@map("affiliate_links")
+}
+
+model CTATemplate {
+  id              String   @id @default(cuid())
+  niche           String
+  name            String   // "Link in Bio CTA", "Comment Keyword CTA"
+  type            String   // link_in_bio, swipe_up, comment_keyword, dm_automation, subscribe, shop_link
+  template        String   @db.Text // "Link in bio for the free guide 👆" with {{placeholders}}
+  platform        String   // which platform this CTA works on
+  conversionRate  Float    @default(0) // tracked conversion rate 0-100
+  timesUsed       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([niche, type])
+  @@map("cta_templates")
+}
+
+model RevenueEvent {
+  id              String   @id @default(cuid())
+  affiliateLinkId String
+  affiliateLink   AffiliateLink @relation(fields: [affiliateLinkId], references: [id], onDelete: Cascade)
+  postId          String?
+  post            SocialPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  type            String   // click, lead, sale, impression, signup
+  amount          Float    @default(0) // revenue amount (0 for clicks)
+  source          String?  // utm_source, referrer, platform
+  metadata        Json?    // extra tracking data
+  createdAt       DateTime @default(now())
+
+  @@index([affiliateLinkId, createdAt])
+  @@index([postId])
+  @@map("revenue_events")
+}
+
+// ══════════════════════════════════════════════════════════
+// FEATURE 10: AUTONOMOUS MODE — Self-running content machine
+// ══════════════════════════════════════════════════════════
+
+model AutonomousRule {
+  id                      String   @id @default(cuid())
+  niche                   String
+  name                    String   // "AI Niche Auto-Approve"
+  minQualityScore         Float    @default(7.5) // 0-10, minimum Opus score to auto-approve
+  maxDailyCost            Float    @default(5.0) // USD, stop creating if daily cost exceeds this
+  maxDailyPosts           Int      @default(5)   // max posts per day in autonomous mode
+  autoApproveAfterMinutes Int      @default(0)   // 0 = instant, else wait N minutes for Bobby to override
+  confidenceThreshold     Float    @default(0.8) // 0-1, how confident Opus must be
+  allowedBuckets          String[] // which content buckets can auto-approve: ["educational", "entertainment"]
+  blockedTopics           String[] // topics that ALWAYS need human approval: ["controversial", "political"]
+  requireHumanReview      Boolean  @default(false) // override: always require Bobby's approval
+  isActive                Boolean  @default(false) // OFF by default — Bobby turns on when ready
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  decisions               AutonomousDecision[]
+
+  @@index([niche, isActive])
+  @@map("autonomous_rules")
+}
+
+model AutonomousDecision {
+  id              String   @id @default(cuid())
+  contentItemId   String
+  contentItem     ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  ruleId          String
+  rule            AutonomousRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  decision        String   // approved, rejected, escalated
+  reason          String?  @db.Text // why this decision was made
+  qualityScore    Float?   // Opus's quality score
+  confidence      Float?   // Opus's confidence level
+  overriddenBy    String?  // "bobby" if Bobby overrode the decision
+  overrideReason  String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([contentItemId])
+  @@index([ruleId, createdAt])
+  @@map("autonomous_decisions")
+}
+
+// ══════════════════════════════════════════════════════════
+// VISUAL WORKFLOW EDITOR
+// ══════════════════════════════════════════════════════════
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  niche       String?
+  characterId String?
+  nodes       Json     // ReactFlow nodes array
+  edges       Json     // ReactFlow edges array
+  config      Json?    // global workflow settings
+  isDefault   Boolean  @default(false) // default workflow template
+  isActive    Boolean  @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  runs        WorkflowRun[]
+
+  @@index([niche])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id          String   @id @default(cuid())
+  workflowId  String
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending, running, completed, failed
+  nodeOutputs Json?    // { nodeId: { output, preview, cost, duration } }
+  totalCost   Float    @default(0)
+  totalDuration Int?   // ms
+  error       String?  @db.Text
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([workflowId, startedAt])
+  @@map("workflow_runs")
 }

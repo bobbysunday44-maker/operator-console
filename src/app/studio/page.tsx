@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PipelinePanel } from "@/components/studio/pipeline-panel";
 import { DetailPanel } from "@/components/studio/detail-panel";
+import { ApprovalPanel } from "@/components/studio/approval-panel";
 import { PipelineSidebar } from "@/components/studio/pipeline-sidebar";
 import type { PipelineStage, CharacterRef, ContentMeta } from "@/lib/pipeline/types";
 
@@ -107,7 +108,6 @@ export default function StudioPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [characters, setCharacters] = useState<CharacterData[]>([]);
   const [activeStageId, setActiveStageId] = useState("prompt");
-  const [videoProgress, setVideoProgress] = useState(67);
 
   const fetchData = useCallback(async () => {
     try {
@@ -146,19 +146,17 @@ export default function StudioPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Animate video progress for running stages
+  // Poll for updates while any stage is running
   useEffect(() => {
-    const t = setInterval(() => {
-      setVideoProgress((p) => (p >= 95 ? 67 : p + 1));
-    }, 800);
-    return () => clearInterval(t);
-  }, []);
+    const hasRunning = selectedContent?.pipelineRuns.some((r) => r.status === "in_progress");
+    if (!hasRunning) return;
+    const poll = setInterval(fetchDetail, 3000);
+    return () => clearInterval(poll);
+  }, [selectedContent, fetchDetail]);
 
   // Build pipeline stages from real data
   const stages: PipelineStage[] = selectedContent
-    ? mapRunsToStages(selectedContent.pipelineRuns).map((s) =>
-        s.id === "video" && s.status === "running" ? { ...s, progress: videoProgress } : s
-      )
+    ? mapRunsToStages(selectedContent.pipelineRuns)
     : STAGE_DEFS.map((def) => ({
         id: def.id, label: def.label, icon: def.icon, agent: def.agent,
         status: "queued" as const, duration: "—", cost: "—", input: "", output: null,
@@ -185,8 +183,8 @@ export default function StudioPage() {
 
   const publishTargets = (selectedContent?.targetPlatforms || []).map((p) => ({
     name: p,
-    handle: `@openclaw_ai`,
-    time: "Scheduled",
+    handle: "Configure in Settings",
+    time: "On approval",
   }));
 
   const costBreakdown = stages.map((s) => ({
@@ -226,15 +224,25 @@ export default function StudioPage() {
           onSelectStage={setActiveStageId}
           content={contentMeta}
         />
-        <DetailPanel
-          stage={activeStage}
-          characterRefs={characterRefs}
-          publishTargets={publishTargets}
-        />
+        {selectedContent && (selectedContent.status === "review" || selectedContent.status === "pending_approval") ? (
+          <ApprovalPanel
+            content={selectedContent}
+            onRefresh={() => { fetchDetail(); fetchData(); }}
+          />
+        ) : (
+          <DetailPanel
+            stage={activeStage}
+            characterRefs={characterRefs}
+            publishTargets={publishTargets}
+            contentId={selectedId || undefined}
+            onRefresh={fetchDetail}
+          />
+        )}
         <PipelineSidebar
           models={PIPELINE_MODELS}
           costs={costBreakdown}
           content={contentMeta}
+          onRunPipeline={fetchDetail}
         />
       </div>
     </div>

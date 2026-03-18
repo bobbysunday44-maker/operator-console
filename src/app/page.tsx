@@ -24,8 +24,9 @@ interface DashboardData {
     costToday: number;
   };
   agents: { id: string; name: string; status: string; currentTask: string | null; type: string; tasksCompleted: number }[];
-  platforms: { name: string; handle: string; connected: boolean; followers: number }[];
+  platforms: { name: string; handle: string; connected: boolean; followers: number; postedToday: number }[];
   recentActivity: { id: string; type: string; message: string; source: string; createdAt: string }[];
+  hourlyUsage: { label: string; value: number; highlight: boolean }[];
 }
 
 interface SocialPost {
@@ -65,12 +66,9 @@ const BRAND: Record<string, { icon: string; color: string }> = {
   "Threads": { icon: "@", color: "#000000" },
 };
 
-// ── Static data (team, until user management is built) ──
+// Single admin user — no fake team members
 const users = [
-  { name: "Bobby Chen", email: "bobby@openclaw.io", role: "admin", lastActive: "2 min ago", apiCalls: "14,203" },
-  { name: "Sarah Kim", email: "sarah@openclaw.io", role: "operator", lastActive: "12 min ago", apiCalls: "8,421" },
-  { name: "Marcus Lee", email: "marcus@openclaw.io", role: "operator", lastActive: "1 hr ago", apiCalls: "3,109" },
-  { name: "Anika Patel", email: "anika@openclaw.io", role: "viewer", lastActive: "3 hr ago", apiCalls: "284" },
+  { name: "Bobby Chen", email: "bobby@operator.console", role: "admin", lastActive: "Now", apiCalls: "—" },
 ];
 
 // ── Sub-components ──
@@ -138,14 +136,14 @@ function formatTokens(n: number): string {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [now, setNow] = useState(new Date());
-  const [toast, setToast] = useState<string | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [routes, setRoutes] = useState<ModelRoute[]>([]);
   const [sessions, setSessions] = useState<BrowserSession[]>([]);
 
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -169,42 +167,40 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2000);
-  }
-
   const kpis = dashboard?.kpis;
   const agents = dashboard?.agents || [];
   const platforms = dashboard?.platforms || [];
 
-  // Hourly usage data (populated when ModelUsageLog has entries)
-  const hourlyUsage = Array.from({ length: 12 }, (_, i) => ({
+  // Hourly usage data from real ModelUsageLog
+  const hourlyUsage = dashboard?.hourlyUsage || Array.from({ length: 12 }, (_, i) => ({
     label: `${i + 6 > 12 ? i + 6 - 12 : i + 6}${i + 6 >= 12 ? "p" : "a"}`,
-    value: Math.floor(Math.random() * 500) + 100,
+    value: 0,
+    highlight: false,
   }));
 
   return (
     <>
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 bg-oc-text text-white text-small font-semibold rounded-oc shadow-lg animate-[fadeIn_0.2s_ease]">
-          {toast}
-        </div>
-      )}
-
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-page-title text-oc-text m-0">Operator Dashboard</h1>
           <p className="text-small text-oc-text-muted mt-[3px]">
-            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} ·{" "}
-            <span className="font-mono">{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+            {now ? now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "Loading..."} ·{" "}
+            <span className="font-mono">{now ? now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--"}</span>
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => showToast("Report exported to ./reports/")}
+            onClick={() => {
+              if (!dashboard) return;
+              const blob = new Blob([JSON.stringify(dashboard, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `operator-report-${new Date().toISOString().split("T")[0]}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
             className="text-[11px] font-semibold text-oc-text-secondary bg-oc-card border border-oc-border rounded-oc-sm px-3.5 py-[7px] cursor-pointer font-sans"
           >
             Export Report
@@ -220,10 +216,10 @@ export default function DashboardPage() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-4 gap-3.5 mb-5">
-        <KPICard label="Active Agents" value={kpis ? `${kpis.activeAgents} / ${kpis.totalAgents}` : "—"} change="" changeType="up" sparkData={[2, 3, 3, 4, 3, 4, 5, 5, kpis?.activeAgents || 5]} icon="⬡" />
-        <KPICard label="Posts Today" value={kpis ? String(kpis.postsToday) : "—"} change="" changeType="up" sparkData={[0, 1, 2, 3, 4, 5, 6, 7, kpis?.postsToday || 0]} icon="◈" />
-        <KPICard label="Tokens Used" value={kpis ? formatTokens(kpis.totalTokens) : "—"} change="" changeType="up" sparkData={[0, 100, 200, 400, 600, 800, 1000, 1200, kpis?.totalTokens || 0]} icon="⟡" />
-        <KPICard label="Cost Today" value={kpis ? `$${kpis.costToday.toFixed(2)}` : "—"} change="" changeType="up" sparkData={[0, 0.1, 0.2, 0.5, 0.8, 1.0, 1.2, 1.4, kpis?.costToday || 0]} icon="♡" />
+        <KPICard label="Active Agents" value={kpis ? `${kpis.activeAgents} / ${kpis.totalAgents}` : "—"} change="" changeType="up" sparkData={[kpis?.activeAgents || 0]} icon="⬡" />
+        <KPICard label="Posts Today" value={kpis ? String(kpis.postsToday) : "—"} change="" changeType="up" sparkData={[kpis?.postsToday || 0]} icon="◈" />
+        <KPICard label="Tokens Used" value={kpis ? formatTokens(kpis.totalTokens) : "—"} change="" changeType="up" sparkData={[kpis?.totalTokens || 0]} icon="⟡" />
+        <KPICard label="Cost Today" value={kpis ? `$${kpis.costToday.toFixed(2)}` : "—"} change="" changeType="up" sparkData={[kpis?.costToday || 0]} icon="♡" />
       </div>
 
       {/* Social Media Command Center */}
@@ -254,7 +250,7 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
                         { val: p.followers?.toLocaleString() || "0", label: "Followers" },
-                        { val: "0", label: "Posted" },
+                        { val: String(p.postedToday ?? 0), label: "Posted" },
                         { val: "—", label: "Engage%", color: "text-oc-green" },
                       ].map((s) => (
                         <div key={s.label} className="text-center py-1.5 bg-oc-bg rounded-[6px]">
@@ -363,7 +359,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between mb-1">
               <span className="text-oc-text-muted">Extension</span>
-              <span className="font-mono text-tiny text-oc-text">v1.0.36</span>
+              <span className="font-mono text-tiny text-oc-text">—</span>
             </div>
             <div className="flex justify-between">
               <span className="text-oc-text-muted">Auth state</span>
@@ -377,13 +373,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-[1fr_300px] gap-3.5 mb-5">
         <OcCard>
           <SectionHeader title="Agent Fleet" subtitle="Real-time agent status and workload" action="Manage" onAction={() => router.push("/agents")} />
-          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
-            <span>Agent</span><span>Status</span><span>Current Task</span><span>Done</span><span>Load</span><span></span>
+          <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_80px] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
+            <span>Agent</span><span>Status</span><span>Current Task</span><span>Done</span><span></span>
           </div>
-          {agents.map((a) => {
-            const load = a.status === "active" ? Math.min(20 + (a.tasksCompleted % 60), 95) : 5;
-            return (
-              <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
+          {agents.map((a) => (
+              <div key={a.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr_80px] items-center py-[11px] border-b border-oc-border-light text-[13px]">
                 <div className="flex items-center gap-2">
                   <StatusDot status={a.status === "active" ? "connected" : a.status === "error" ? "error" : "idle"} />
                   <span className="font-semibold text-oc-text">{a.name}</span>
@@ -392,24 +386,17 @@ export default function DashboardPage() {
                 <div className="text-small text-oc-text-secondary">{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</div>
                 <div className="font-mono text-[11px] text-oc-text-secondary">{a.currentTask || "—"}</div>
                 <div className="font-mono text-small text-oc-text">{a.tasksCompleted}</div>
-                <div>
-                  <div className="w-full h-[5px] bg-oc-border-light rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${load}%`, backgroundColor: load > 80 ? "#D97706" : "#2563EB" }} />
-                  </div>
-                  <span className="text-[9px] text-oc-text-muted mt-0.5 block">{load}%</span>
-                </div>
                 <div className="text-right">
                   <button onClick={() => router.push("/agents")} className="text-[11px] font-semibold text-oc-blue bg-transparent border-none cursor-pointer font-sans">Details →</button>
                 </div>
               </div>
-            );
-          })}
+          ))}
         </OcCard>
 
         <div className="flex flex-col gap-3.5">
           <OcCard>
             <SectionHeader title="Token Usage" subtitle="Today" />
-            <BarChart data={hourlyUsage.map((h, i) => ({ ...h, highlight: i === hourlyUsage.length - 1 }))} />
+            <BarChart data={hourlyUsage} />
             <div className="mt-2.5 flex justify-between text-tiny">
               <span className="text-oc-text-muted">Tokens: <span className="font-semibold text-oc-text">{kpis ? formatTokens(kpis.totalTokens) : "—"}</span></span>
               <span className="text-oc-text-muted">Cost: <span className="font-semibold text-oc-text">${kpis?.costToday.toFixed(2) || "0.00"}</span></span>
@@ -434,7 +421,7 @@ export default function DashboardPage() {
         </OcCard>
 
         <OcCard>
-          <SectionHeader title="Team & Permissions" subtitle="User access management" action="Invite" onAction={() => showToast("Invite link copied to clipboard")} />
+          <SectionHeader title="Operator" subtitle="Console admin" />
           <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr] py-2 border-b-2 border-oc-border text-tiny font-semibold text-oc-text-muted uppercase tracking-[0.08em]">
             <span>User</span><span>Role</span><span>Last Active</span><span>API Calls</span>
           </div>
@@ -469,7 +456,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-right">
               <div className="text-tiny text-oc-text-muted font-medium">Billing Period</div>
-              <div className="text-small font-semibold mt-0.5">Mar 1 – Mar 31</div>
+              <div className="text-small font-semibold mt-0.5">{(() => { const n = new Date(); const s = new Date(n.getFullYear(), n.getMonth(), 1); const e = new Date(n.getFullYear(), n.getMonth() + 1, 0); return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`; })()}</div>
             </div>
           </div>
         </OcCard>
